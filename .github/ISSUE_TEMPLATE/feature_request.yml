@@ -1,0 +1,19 @@
+name: "✨ Feature Request / Melhoria"
+description: "Sugira uma nova funcionalidade para o Bot do Telegram, Dashboard, OCR ou Motor Declarativo."
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Qual problema esta funcionalidade resolve?"
+      placeholder: "Ex: Gostaria de receber um resumo mensal em PDF ou exportar CSV..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: "Solução Proposta & Impacto no Free Tier"
+      description: "Descreva como a funcionalidade deve operar mantendo o consumo dentro do 100% Free Tier (<= 512MB RAM no Render)."
+    validations:
+      required: true

@@ -1,0 +1,8 @@
+# Mantenedores padrão para revisão automática de Pull Requests
+* @lucasdlg5
+/packages/shared/ @lucasdlg5
+/apps/backend/ @lucasdlg5
+/apps/worker/ @lucasdlg5
+/apps/frontend/ @lucasdlg5
+/supabase/ @lucasdlg5
+/.github/ @lucasdlg5

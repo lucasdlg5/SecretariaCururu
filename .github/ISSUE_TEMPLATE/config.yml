@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🛡️ Reportar Vulnerabilidade de Segurança (Zero Plaintext)
+    url: https://github.com/lucasdlg5/SecretariaCururu/security/advisories/new
+    about: Nunca publique CPFs, senhas ou tokens em Issues públicas. Use o canal privado de Security Advisories.
+  - name: 📖 Documentação de Arquitetura & Fluxos
+    url: https://github.com/lucasdlg5/SecretariaCururu/blob/main/docs/ARCHITECTURE.md
+    about: Consulte os diagramas Mermaid e invariantes do sistema antes de abrir uma Issue.

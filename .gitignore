@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment & Secrets (ZERO PLAINTEXT POLICY)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+service-account*.json
+
+# Testing & Playwright
+coverage/
+playwright-report/
+test-results/
+downloads/
+tmp/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+*.log

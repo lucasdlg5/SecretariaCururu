@@ -1,0 +1,74 @@
+name: Daily Bill Capture & Reconciliation (Playwright Worker)
+
+on:
+  schedule:
+    # Executa diariamente às 11:00 UTC (08:00 BRT)
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+    inputs:
+      provider_id:
+        description: "UUID opcional de um provedor específico para executar"
+        required: false
+        type: string
+      provider_name:
+        description: "Nome parcial opcional do provedor (ex: EDP, NJCI, Comgas)"
+        required: false
+        type: string
+      reference_month:
+        description: "Mês de referência no formato YYYY-MM (padrão: mês atual)"
+        required: false
+        type: string
+      force_run:
+        description: "Forçar execução ignorando trigger_day"
+        required: false
+        default: "true"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile-bills:
+    name: Run Declarative Playwright Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.5
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Install Playwright Chromium browser
+        run: pnpm --filter @secretaria/worker exec playwright install --with-deps chromium
+
+      - name: Build shared & backend packages
+        run: pnpm --filter @secretaria/shared build && pnpm --filter @secretaria/backend build
+
+      - name: Execute Daily Reconciliation Worker
+        env:
+          APP_MASTER_KEY: ${{ secrets.APP_MASTER_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_DRIVE_ROOT_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_ROOT_FOLDER_ID }}
+          DRIVE_FOLDER_LAYOUT: ${{ secrets.DRIVE_FOLDER_LAYOUT || 'BY_MONTH' }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ALLOWED_CHAT_IDS: ${{ secrets.TELEGRAM_ALLOWED_CHAT_IDS }}
+          INPUT_PROVIDER_ID: ${{ inputs.provider_id }}
+          INPUT_PROVIDER_NAME: ${{ inputs.provider_name }}
+          INPUT_REFERENCE_MONTH: ${{ inputs.reference_month }}
+          INPUT_FORCE_RUN: ${{ inputs.force_run }}
+        run: pnpm --filter @secretaria/worker reconcile

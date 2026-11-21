@@ -1,0 +1,40 @@
+name: "🌐 Quebra de Portal / Novo Provedor de Fatura (Playwright Workflow)"
+description: "Reporte mudança de seletor CSS/DOM em um portal (EDP, NJCI, Comgás, Sabesp) ou solicite um novo template."
+title: "[Portal]: "
+labels: ["provider-portal", "playwright"]
+body:
+  - type: dropdown
+    id: category
+    attributes:
+      label: "Categoria da Conta"
+      options:
+        - "LUZ (ex: EDP, Enel, Light, Neoenergia)"
+        - "INTERNET (ex: NJCI, Vivo, Claro, Oi)"
+        - "GAS (ex: Comgás, Naturgy)"
+        - "AGUA (ex: Sabesp, Copasa, Sanepar)"
+        - "CONDOMINIO / ALUGUEL / OUTROS"
+    validations:
+      required: true
+  - type: input
+    id: portal_url
+    attributes:
+      label: "URL de Login do Portal"
+      placeholder: "https://www.edponline.com.br/para-sua-casa/login"
+    validations:
+      required: true
+  - type: input
+    id: step_failed
+    attributes:
+      label: "Passo Onde Falhou (step_reached no execution_logs)"
+      placeholder: "Ex: STEP_6_dismiss_optional_modal ou STEP_12_download_pdf"
+  - type: textarea
+    id: workflow_json
+    attributes:
+      label: "Definição Declarativa Sugerida (workflow_steps JSONB)"
+      description: "Use apenas placeholders {{secret:CHAVE}}, nunca dados reais."
+      render: json
+      value: |
+        [
+          { "action": "goto", "url": "https://..." },
+          { "action": "fill_secret", "selector": "input[name=\"cpf\"]", "secretKey": "CPF" }
+        ]

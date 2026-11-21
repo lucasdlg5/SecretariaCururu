@@ -1,0 +1,41 @@
+name: "🐛 Bug Report (Falha no Sistema ou Código)"
+description: "Reporte um bug encontrado no Backend, Worker Playwright, Frontend Dashboard ou pacote Shared."
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > ⚠️ **Política Zero Plaintext:** Certifique-se de que nenhum CPF, e-mail pessoal, senha, código de barras real ou token esteja presente nos logs ou screenshots anexados.
+  - type: dropdown
+    id: package
+    attributes:
+      label: "Pacote / Componente Afetado"
+      options:
+        - "@secretaria/shared (Zod, AES-256-GCM, Pino Redactor, Supabase Types)"
+        - "@secretaria/backend (Fastify, Bot Telegram grammY, Google Drive, Gemini OCR)"
+        - "@secretaria/worker (Playwright Engine, PDF Extractor, Reconcile Backoff)"
+        - "@secretaria/frontend (Dashboard React, Recharts, Provider Wizard)"
+        - "Supabase Migrations / RLS Policies"
+        - "GitHub Actions Workflows (CI / daily_reconcile.yml)"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: "Descrição do Bug & Sintoma"
+      description: "O que aconteceu e qual era o comportamento esperado?"
+      placeholder: "Ao executar o build/worker..."
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Log Sanitizado ou Mensagem de Erro"
+      description: "Cole o erro ou log sanitizado pelo Pino Redactor."
+      render: shell
+  - type: textarea
+    id: solution
+    attributes:
+      label: "Causa Raiz / Solução Proposta (Opcional)"
+      description: "Se você já identificou a causa ou correção, descreva abaixo."
