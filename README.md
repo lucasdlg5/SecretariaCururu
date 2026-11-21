@@ -339,10 +339,10 @@ Durante a construção e validação das 5 fases do monorepo, todos os bugs iden
 
 | Issue | Pacote Afetado | Sintoma / Erro Encontrado | Causa Raiz & Solução Implementada | Status |
 | :---: | :--- | :--- | :--- | :---: |
-| [**#1**](https://github.com/lucasdlg5/SecretariaCururu/issues/1) | `@secretaria/shared` | `error TS2339: Property 'provider_id' does not exist on type 'never'` em queries `.select('*')` e `.insert()` do Supabase. | O `@supabase/supabase-js` v2.49+ exige que cada tabela em `Database['public']['Tables']` declare `Relationships` e que `Row` satisfaça `Record<string, unknown>` (usando `type` em vez de `interface`). Corrigido em [`supabase.ts`](./packages/shared/src/supabase.ts). | ✅ **Fechado / Resolvido** |
-| [**#2**](https://github.com/lucasdlg5/SecretariaCururu/issues/2) | `@secretaria/backend` | `error TS2322: Type 'FastifyBaseLogger' is not assignable to type 'Logger'` ao passar logger Pino customizado ao Fastify v5. | O Fastify v5 utiliza `loggerInstance` tipado como `FastifyBaseLogger`. Ajustada a integração com `createSanitizedLogger` em [`server.ts`](./apps/backend/src/server.ts). | ✅ **Fechado / Resolvido** |
-| [**#3**](https://github.com/lucasdlg5/SecretariaCururu/issues/3) | `@secretaria/shared` & `@secretaria/frontend` | Falha no `vite build`: `"randomBytes" is not exported by "__vite-browser-external"`, causada pela reexportação de `node:crypto` no barrel principal. | Criado entrypoint condicional [`browser.ts`](./packages/shared/src/browser.ts) e configurado `"browser": "./dist/browser.js"` em [`packages/shared/package.json`](./packages/shared/package.json), isolando `node:crypto` apenas para ambientes Node.js. | ✅ **Fechado / Resolvido** |
-| [**#4**](https://github.com/lucasdlg5/SecretariaCururu/issues/4) | `@secretaria/shared` | Risco de uma linha digitável de boleto (44–48 dígitos) sofrer match parcial pela regex de CPF de 11 dígitos antes de ser sanitizada como código de barras. | Ordenada a pipeline de sanitização em [`redactor.ts`](./packages/shared/src/redactor.ts) para executar `BARCODE_REGEX` (44–48 dígitos) e secrets dinâmicos em memória **antes** de `CPF_RAW_11_REGEX`. | ✅ **Fechado / Resolvido** |
+| [**#4**](https://github.com/lucasdlg5/SecretariaCururu/issues/4) | `@secretaria/shared` | `error TS2339: Property 'provider_id' does not exist on type 'never'` em queries `.select('*')` e `.insert()` do Supabase. | O `@supabase/supabase-js` v2.49+ exige que cada tabela em `Database['public']['Tables']` declare `Relationships` e que `Row` satisfaça `Record<string, unknown>` (usando `type` em vez de `interface`). Corrigido em [`supabase.ts`](./packages/shared/src/supabase.ts). | ✅ **Fechado / Resolvido** |
+| [**#6**](https://github.com/lucasdlg5/SecretariaCururu/issues/6) | `@secretaria/backend` | `error TS2322: Type 'FastifyBaseLogger' is not assignable to type 'Logger'` ao passar logger Pino customizado ao Fastify v5. | O Fastify v5 utiliza `loggerInstance` tipado como `FastifyBaseLogger`. Ajustada a integração com `createSanitizedLogger` em [`server.ts`](./apps/backend/src/server.ts). | ✅ **Fechado / Resolvido** |
+| [**#7**](https://github.com/lucasdlg5/SecretariaCururu/issues/7) | `@secretaria/shared` & `@secretaria/frontend` | Falha no `vite build`: `"randomBytes" is not exported by "__vite-browser-external"`, causada pela reexportação de `node:crypto` no barrel principal. | Criado entrypoint condicional [`browser.ts`](./packages/shared/src/browser.ts) e configurado `"browser": "./dist/browser.js"` em [`packages/shared/package.json`](./packages/shared/package.json), isolando `node:crypto` apenas para ambientes Node.js. | ✅ **Fechado / Resolvido** |
+| [**#9**](https://github.com/lucasdlg5/SecretariaCururu/issues/9) | `@secretaria/shared` | Risco de uma linha digitável de boleto (44–48 dígitos) sofrer match parcial pela regex de CPF de 11 dígitos antes de ser sanitizada como código de barras. | Ordenada a pipeline de sanitização em [`redactor.ts`](./packages/shared/src/redactor.ts) para executar `BARCODE_REGEX` (44–48 dígitos) e secrets dinâmicos em memória **antes** de `CPF_RAW_11_REGEX`. | ✅ **Fechado / Resolvido** |
 
 ---
 
@@ -350,13 +350,13 @@ Durante a construção e validação das 5 fases do monorepo, todos os bugs iden
 
 O repositório utiliza recursos nativos do GitHub (Issues, Labels, Milestones, CI Workflows, Dependabot e Releases) para organizar a evolução contínua:
 
-- [x] **Fase 1 (Milestone v1.0.0):** Estrutura do monorepo `pnpm`, migrations SQL com RLS, cofre AES-256-GCM e Pino Log Redactor.
-- [x] **Fase 2 (Milestone v1.0.0):** Google Drive API v3 idempotente, Backend Fastify, Bot Telegram grammY e OCR Gemini 2.5 Flash.
-- [x] **Fase 3 (Milestone v1.0.0):** Motor declarativo Playwright, templates de EDP/NJCI/Comgás/Sabesp e workflow GitHub Actions com backoff exponencial.
-- [x] **Fase 4 & 5 (Milestone v1.0.0):** Dashboard React + Recharts + Wizard declarativo e governança completa do repositório.
-- [ ] **Próximos Passos (Issues Abertas — Milestone v1.1.0):**
-  - Suporte ao modo `EMAIL_WATCH` via Gmail API / IMAP para captura de faturas enviadas exclusivamente por e-mail.
-  - Novos templates declarativos comunitários (Enel, Light, Vivo Fibra, Claro, Copasa, Sanepar).
+- [x] **Fase 1 ([Milestone v1.0.0](https://github.com/lucasdlg5/SecretariaCururu/milestone/1)):** Estrutura do monorepo `pnpm`, migrations SQL com RLS, cofre AES-256-GCM e Pino Log Redactor.
+- [x] **Fase 2 ([Milestone v1.0.0](https://github.com/lucasdlg5/SecretariaCururu/milestone/1)):** Google Drive API v3 idempotente, Backend Fastify, Bot Telegram grammY e OCR Gemini 2.5 Flash.
+- [x] **Fase 3 ([Milestone v1.0.0](https://github.com/lucasdlg5/SecretariaCururu/milestone/1)):** Motor declarativo Playwright, templates de EDP/NJCI/Comgás/Sabesp e workflow GitHub Actions com backoff exponencial.
+- [x] **Fase 4 & 5 ([Milestone v1.0.0](https://github.com/lucasdlg5/SecretariaCururu/milestone/1)):** Dashboard React + Recharts + Wizard declarativo e governança completa do repositório.
+- [ ] **Próximos Passos (Issues Abertas — [Milestone v1.1.0](https://github.com/lucasdlg5/SecretariaCururu/milestone/2)):**
+  - [**Issue #13**](https://github.com/lucasdlg5/SecretariaCururu/issues/13): Suporte ao modo `EMAIL_WATCH` via Gmail API / IMAP para captura de faturas enviadas exclusivamente por e-mail.
+  - [**Issue #14**](https://github.com/lucasdlg5/SecretariaCururu/issues/14): Novos templates declarativos comunitários (Enel, Light, Vivo Fibra, Claro, Copasa, Sanepar).
 
 ---
 
