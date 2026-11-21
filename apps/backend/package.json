@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
-    "@google/genai": "^1.0.0",
+    "@google/genai": "^3.6.0",
     "@octokit/rest": "^21.1.1",
     "@secretaria/shared": "workspace:*",
     "fastify": "^5.2.1",
