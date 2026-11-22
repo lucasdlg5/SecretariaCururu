@@ -24,12 +24,15 @@ import {
   type CycleStatus,
   formatCentsToBrl,
 } from '@secretaria/shared';
-import { DEMO_MONTHLY_HISTORY } from '../lib/supabase.js';
+import { DEMO_ALL_CYCLES, DEMO_MONTHLY_HISTORY } from '../lib/supabase.js';
+import { MonthlyIndividualBreakdownSection } from './MonthlyIndividualBreakdownSection.js';
 
 interface MonthlyOverviewProps {
   referenceMonth: string;
   providers: BillProviderRow[];
   cycles: BillCycleRow[];
+  allCycles?: BillCycleRow[];
+  onSelectMonth?: (month: string) => void;
   onTriggerProvider: (provider: BillProviderRow) => void;
   triggeringId: string | null;
 }
@@ -84,6 +87,8 @@ export const MonthlyOverview: React.FC<MonthlyOverviewProps> = ({
   referenceMonth,
   providers,
   cycles,
+  allCycles = DEMO_ALL_CYCLES,
+  onSelectMonth,
   onTriggerProvider,
   triggeringId,
 }) => {
@@ -322,6 +327,16 @@ export const MonthlyOverview: React.FC<MonthlyOverviewProps> = ({
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* Individual Bill Breakdown Section with Month Filter & Total Month Card */}
+      <MonthlyIndividualBreakdownSection
+        providers={providers}
+        allCycles={allCycles}
+        selectedMonth={referenceMonth}
+        onSelectMonth={onSelectMonth}
+        onTriggerProvider={onTriggerProvider}
+        triggeringId={triggeringId}
+      />
     </div>
   );
 };

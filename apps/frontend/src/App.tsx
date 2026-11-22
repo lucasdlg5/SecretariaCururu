@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   FolderGit2,
   BarChart3,
+  CalendarRange,
 } from 'lucide-react';
 import type {
   BillCycleRow,
@@ -20,10 +21,11 @@ import {
 } from './lib/supabase.js';
 import { MonthlyOverview } from './components/MonthlyOverview.js';
 import { BIAnalyticsView } from './components/BIAnalyticsView.js';
+import { MonthlyIndividualBreakdownSection } from './components/MonthlyIndividualBreakdownSection.js';
 import { AuditLogsView } from './components/AuditLogsView.js';
 import { ProviderWizard } from './components/ProviderWizard.js';
 
-type ActiveTab = 'overview' | 'bi' | 'audit' | 'wizard';
+type ActiveTab = 'overview' | 'bi' | 'monthly_breakdown' | 'audit' | 'wizard';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
@@ -283,6 +285,19 @@ export const App: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setActiveTab('monthly_breakdown')}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'monthly_breakdown'
+                ? 'border-emerald-400 text-emerald-300'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <CalendarRange className="w-4 h-4" />
+            3. Contas por Mês (Individual & Total)
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('audit')}
             className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'audit'
@@ -291,7 +306,7 @@ export const App: React.FC = () => {
             }`}
           >
             <ScrollText className="w-4 h-4" />
-            3. Auditoria & Logs ({logs.length})
+            4. Auditoria & Logs ({logs.length})
           </button>
 
           <button
@@ -304,7 +319,7 @@ export const App: React.FC = () => {
             }`}
           >
             <Wand2 className="w-4 h-4" />
-            4. Wizard de Novo Processo
+            5. Wizard de Novo Processo
           </button>
         </div>
       </header>
@@ -342,13 +357,33 @@ export const App: React.FC = () => {
                 referenceMonth={referenceMonth}
                 providers={providers}
                 cycles={cycles}
+                allCycles={allCycles}
+                onSelectMonth={(m) => setReferenceMonth(m)}
                 onTriggerProvider={(p) => handleTriggerProvider(p)}
                 triggeringId={triggeringId}
               />
             )}
 
             {activeTab === 'bi' && (
-              <BIAnalyticsView providers={providers} allCycles={allCycles} />
+              <BIAnalyticsView
+                providers={providers}
+                allCycles={allCycles}
+                selectedMonth={referenceMonth}
+                onSelectMonth={(m) => setReferenceMonth(m)}
+                onTriggerProvider={(p) => handleTriggerProvider(p)}
+                triggeringId={triggeringId}
+              />
+            )}
+
+            {activeTab === 'monthly_breakdown' && (
+              <MonthlyIndividualBreakdownSection
+                providers={providers}
+                allCycles={allCycles}
+                selectedMonth={referenceMonth}
+                onSelectMonth={(m) => setReferenceMonth(m)}
+                onTriggerProvider={(p) => handleTriggerProvider(p)}
+                triggeringId={triggeringId}
+              />
             )}
 
             {activeTab === 'audit' && (

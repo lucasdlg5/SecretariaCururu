@@ -32,10 +32,15 @@ import {
   formatCentsToBrl,
   predictDueDateFromHistory,
 } from '@secretaria/shared';
+import { MonthlyIndividualBreakdownSection } from './MonthlyIndividualBreakdownSection.js';
 
 interface BIAnalyticsViewProps {
   providers: BillProviderRow[];
   allCycles: BillCycleRow[];
+  selectedMonth?: string;
+  onSelectMonth?: (month: string) => void;
+  onTriggerProvider?: (provider: BillProviderRow) => void;
+  triggeringId?: string | null;
 }
 
 // ============================================================================
@@ -175,6 +180,10 @@ const BUDGET_COMPOSITION_PIE = [
 export const BIAnalyticsView: React.FC<BIAnalyticsViewProps> = ({
   providers,
   allCycles,
+  selectedMonth,
+  onSelectMonth,
+  onTriggerProvider,
+  triggeringId,
 }) => {
   // Compute historical due date predictions for all active providers for the next cycle (2026-09 / 2026-10)
   const predictions = providers.map((prov) => {
@@ -716,6 +725,16 @@ export const BIAnalyticsView: React.FC<BIAnalyticsViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Individual Bill Breakdown Section with Month Filter & Total Month Card */}
+      <MonthlyIndividualBreakdownSection
+        providers={providers}
+        allCycles={allCycles}
+        selectedMonth={selectedMonth}
+        onSelectMonth={onSelectMonth}
+        onTriggerProvider={onTriggerProvider}
+        triggeringId={triggeringId}
+      />
     </div>
   );
 };
