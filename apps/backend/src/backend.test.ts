@@ -13,6 +13,11 @@ import {
   evaluateReceiptReconciliation,
 } from './services/reconciliation.js';
 import { buildFastifyServer } from './server.js';
+import {
+  checkAndRecordBotInteraction,
+  INACTIVITY_THRESHOLD_MS,
+  setLastBotInteractionAt,
+} from './bot/telegram.js';
 import type { TypedSupabaseClient } from '@secretaria/shared';
 import type { GitHubActionsTriggerService } from './services/github-trigger.js';
 
@@ -191,5 +196,21 @@ describe('Fastify Webhook Security (X-Telegram-Bot-Api-Secret-Token)', () => {
       payload: { update_id: 1 },
     });
     expect(authorizedResponse.statusCode).toBe(200);
+  });
+
+  it('triggers dashboard link after 1 hour of bot inactivity', () => {
+    setLastBotInteractionAt(null);
+    const t0 = 1_000_000_000;
+
+    // First interaction after cold start -> sends dashboard link
+    expect(checkAndRecordBotInteraction(t0)).toBe(true);
+
+    // Interaction 30 minutes later -> does NOT send dashboard link
+    expect(checkAndRecordBotInteraction(t0 + 30 * 60 * 1000)).toBe(false);
+
+    // Interaction 1 hour after the 30-min interaction -> sends dashboard link again
+    expect(
+      checkAndRecordBotInteraction(t0 + 30 * 60 * 1000 + INACTIVITY_THRESHOLD_MS)
+    ).toBe(true);
   });
 });

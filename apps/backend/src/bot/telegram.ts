@@ -20,6 +20,32 @@ import type { GitHubActionsTriggerService } from '../services/github-trigger.js'
 
 const logger = createSanitizedLogger('telegram-bot');
 
+export const DEFAULT_DASHBOARD_URL = 'https://secretaria-cururu-dashboard.onrender.com';
+export const INACTIVITY_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour (3,600,000 ms)
+
+let lastBotInteractionAt: number | null = null;
+
+/**
+ * Checks whether the bot has been inactive (no user interaction) for >= 1 hour
+ * (or since server cold start), and updates the last interaction timestamp.
+ */
+export function checkAndRecordBotInteraction(
+  nowMs: number = Date.now(),
+  thresholdMs: number = INACTIVITY_THRESHOLD_MS
+): boolean {
+  const shouldSendDashboardLink =
+    lastBotInteractionAt === null || nowMs - lastBotInteractionAt >= thresholdMs;
+  lastBotInteractionAt = nowMs;
+  return shouldSendDashboardLink;
+}
+
+/**
+ * Resets or sets the last interaction timestamp (useful for testing).
+ */
+export function setLastBotInteractionAt(timestampMs: number | null): void {
+  lastBotInteractionAt = timestampMs;
+}
+
 interface PendingFileAttachment {
   buffer: Buffer;
   mimeType: string;
@@ -90,7 +116,7 @@ export function createTelegramBot(deps: TelegramBotDependencies): Bot {
   const bot = new Bot(token);
 
   // --------------------------------------------------------------------------
-  // 1. Whitelist Middleware (TELEGRAM_ALLOWED_CHAT_IDS: numeric IDs or @usernames)
+  // 1. Whitelist & 1-Hour Inactivity Dashboard Link Middleware
   // --------------------------------------------------------------------------
   bot.use(async (ctx, next) => {
     const chatId = ctx.chat?.id ? String(ctx.chat.id) : null;
@@ -99,6 +125,19 @@ export function createTelegramBot(deps: TelegramBotDependencies): Bot {
     if (!isTelegramUserAllowed(chatId, username)) {
       logger.warn({ chatId, username }, 'Acesso bloqueado: Chat ID / Username fora da whitelist do Telegram');
       return;
+    }
+
+    const shouldSendDashboardLink = checkAndRecordBotInteraction();
+    if (shouldSendDashboardLink && ctx.chat?.id) {
+      const dashboardUrl = process.env.DASHBOARD_URL ?? DEFAULT_DASHBOARD_URL;
+      await ctx
+        .reply(
+          `🌐 *Painel SecretariaCururu Online:*\nAcesse o dashboard: ${dashboardUrl}`,
+          { parse_mode: 'Markdown' }
+        )
+        .catch((err) => {
+          logger.warn({ err }, 'Falha ao enviar mensagem automática com link do dashboard');
+        });
     }
 
     await next();
