@@ -305,10 +305,12 @@ export const MonthlyOverview: React.FC<MonthlyOverviewProps> = ({
               />
               <Legend />
               <Bar dataKey="LUZ" stackId="a" fill="#f59e0b" name="Luz (EDP)" />
+              <Bar dataKey="AGUA" stackId="a" fill="#60a5fa" name="Água (SAAE)" />
               <Bar dataKey="INTERNET" stackId="a" fill="#38bdf8" name="Internet (NJCI)" />
               <Bar dataKey="GAS" stackId="a" fill="#fb7185" name="Gás (Comgás)" />
               <Bar dataKey="CONDOMINIO" stackId="a" fill="#a78bfa" name="Condomínio" />
               <Bar dataKey="ALUGUEL" stackId="a" fill="#34d399" name="Aluguel" />
+              <Bar dataKey="OUTROS" stackId="a" fill="#f472b6" name="IPTU & Lixo" />
             </BarChart>
           </ResponsiveContainer>
         </div>

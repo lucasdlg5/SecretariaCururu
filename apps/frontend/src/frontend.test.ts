@@ -7,15 +7,16 @@ import {
 } from './lib/supabase.js';
 
 describe('Frontend Dashboard & Wizard State Integrity', () => {
-  it('loads all 6 preset providers (EDP, NJCI, Comgás, Água, Condomínio, Aluguel)', () => {
-    expect(DEMO_PROVIDERS.length).toBe(6);
+  it('loads all 7 real providers mapped from Contas Mensais (EDP, NJCI, Comgás, Água SAAE, Condomínio, Aluguel, IPTU & Lixo)', () => {
+    expect(DEMO_PROVIDERS.length).toBe(7);
     const names = DEMO_PROVIDERS.map((p) => p.name);
     expect(names).toContain('Luz - EDP');
     expect(names).toContain('Internet - NJCI');
     expect(names).toContain('Gás - Comgás');
-    expect(names).toContain('Água - Sabesp');
+    expect(names).toContain('Água - SAAE Jacareí');
     expect(names).toContain('Condomínio Residencial');
     expect(names).toContain('Aluguel Mensal');
+    expect(names).toContain('IPTU & Taxa de Lixo');
   });
 
   it('ensures all demo execution logs are properly sanitized without plaintext secrets', () => {

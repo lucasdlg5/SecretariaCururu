@@ -7,7 +7,9 @@ import {
   createSanitizedLogger,
   createServiceSupabaseClient,
   decryptSecretsMap,
+  formatCentsToBrl,
   formatReferenceMonth,
+  predictDueDateFromHistory,
   sanitizeLogText,
 } from '@secretaria/shared';
 import {
@@ -188,22 +190,52 @@ export async function reconcileSingleProvider(
     cycle = updated;
   }
 
-  // 2. Handle MANUAL_REMINDER mode (Condomínio, Aluguel)
+  // 1.5 Fetch historical cycles of this provider for due date & amount prediction
+  const { data: historicalCycles } = await supabase
+    .from('bill_cycles')
+    .select('reference_month, due_date, paid_at, amount_cents')
+    .eq('provider_id', provider.id)
+    .lt('reference_month', referenceMonth)
+    .order('reference_month', { ascending: false })
+    .limit(12);
+
+  const duePrediction = predictDueDateFromHistory({
+    targetReferenceMonth: referenceMonth,
+    historicalCycles: historicalCycles ?? [],
+    defaultDueDay: provider.due_day_default,
+  });
+
+  // 2. Handle MANUAL_REMINDER mode (Condomínio, Aluguel, IPTU)
   if (provider.mode === 'MANUAL_REMINDER') {
     await supabase
       .from('bill_cycles')
-      .update({ status: 'MANUAL_REQUIRED' })
+      .update({
+        status: 'MANUAL_REQUIRED',
+        due_date: duePrediction.predictedDueDate,
+        predicted_due_date: duePrediction.predictedDueDate,
+        amount_cents: cycle.amount_cents ?? duePrediction.predictedAmountCents,
+      })
       .eq('id', cycle.id);
+
+    const formattedPredictedDue = duePrediction.predictedDueDate
+      .split('-')
+      .reverse()
+      .join('/');
 
     await notifyTelegramChats(
       bot,
       [
         `🔔 *Lembrete Mensal de Conta Manual*`,
         `• *Conta:* ${provider.name} (${referenceMonth})`,
-        `• *Vencimento Padrão:* Dia ${provider.due_day_default}`,
+        `• *🔮 Vencimento Previsto:* *${formattedPredictedDue}* _(${duePrediction.explanation})_`,
+        duePrediction.predictedAmountCents
+          ? `• *Valor Estimado (Histórico):* ${formatCentsToBrl(duePrediction.predictedAmountCents)}`
+          : '',
         '',
         `Por favor, envie o PDF ou foto do boleto aqui no chat para arquivar na pasta \`Faturas\` e registrar o ciclo como \`PDF_CAPTURED\`.`,
-      ].join('\n')
+      ]
+        .filter(Boolean)
+        .join('\n')
     );
 
     await supabase.from('execution_logs').insert({
@@ -213,7 +245,7 @@ export async function reconcileSingleProvider(
       finished_at: new Date().toISOString(),
       status: 'MANUAL_REMINDER_SENT',
       step_reached: 'MANUAL_REMINDER',
-      sanitized_message: 'Lembrete manual enviado via Telegram com sucesso.',
+      sanitized_message: `Lembrete manual enviado com vencimento previsto para ${formattedPredictedDue} (${duePrediction.explanation}).`,
     });
     return;
   }

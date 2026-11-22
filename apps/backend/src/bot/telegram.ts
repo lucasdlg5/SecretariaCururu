@@ -5,6 +5,7 @@ import {
   createSanitizedLogger,
   formatCentsToBrl,
   formatReferenceMonth,
+  predictDueDateFromHistory,
 } from '@secretaria/shared';
 import type { GoogleDriveService } from '../services/drive.js';
 import {
@@ -134,6 +135,8 @@ export interface UnpaidAnalyzedCycleItem {
   status: string;
   amountCents: number | null;
   dueDate: string | null;
+  isPredictedFromHistory?: boolean;
+  predictionExplanation?: string | null;
   invoiceDriveUrl?: string | null;
 }
 
@@ -150,18 +153,20 @@ export function buildBotCapabilitiesWelcomeMessage(
     `Aqui está o que eu posso fazer por você:`,
     `• 🧾 *Conciliar Comprovantes:* Envie uma *foto ou PDF* de qualquer comprovante (PIX/boleto) que eu extraio o valor via OCR e concilio automaticamente.`,
     `• 📄 *Arquivar Faturas Manuais:* Envie boletos de Condomínio, Aluguel ou contas pendentes para salvar no Google Drive.`,
+    `• 🔮 *Previsão Inteligente (Manual Required):* Para contas que exigem envio manual, eu prevejo a data de vencimento e o valor esperado com base no histórico real dos meses anteriores.`,
     `• 📊 \`/status\` — Ver o resumo de todas as contas do mês atual.`,
-    `• ⏳ \`/pendentes\` — Listar contas abertas e não pagas.`,
+    `• ⏳ \`/pendentes\` — Listar contas abertas e previsões de vencimento.`,
     `• 🚀 \`/rodar <conta>\` — Disparar a captura automática no portal agora mesmo (ex: \`/rodar EDP\`).`,
     `• 🧩 *Resolver CAPTCHA:* Se algum portal pedir confirmação visual, basta responder o código aqui no chat.`,
     '',
-    `🌐 *Painel Web:* ${dashboardUrl}`,
+    `🌐 *Painel Web & BI:* ${dashboardUrl}`,
   ].join('\n');
 }
 
 /**
  * Message 2 sent when resuming chat after >= 1 hour of inactivity:
- * Lists the due dates (datas de vencimento) and amounts of already analyzed and unpaid bills.
+ * Lists the due dates (datas de vencimento, incluindo previsões baseadas no histórico para MANUAL_REQUIRED)
+ * and amounts of already analyzed and unpaid bills.
  */
 export function buildUnpaidAnalyzedBillsMessage(
   items: UnpaidAnalyzedCycleItem[]
@@ -193,14 +198,19 @@ export function buildUnpaidAnalyzedBillsMessage(
     const driveLink = item.invoiceDriveUrl
       ? ` • [Ver Fatura](${item.invoiceDriveUrl})`
       : '';
+    const predictedBadge =
+      item.status === 'MANUAL_REQUIRED' || item.isPredictedFromHistory
+        ? ` _(🔮 Previsto pelo histórico${item.predictionExplanation ? `: ${item.predictionExplanation}` : ''})_`
+        : '';
+
     lines.push(
-      `• *${item.providerName}* (${item.referenceMonth}) — Vencimento: *${formattedDue}* — Valor: *${formattedAmount}*${driveLink}`
+      `• *${item.providerName}* (${item.referenceMonth}) — Vencimento: *${formattedDue}*${predictedBadge} — Valor: *${formattedAmount}*${driveLink}`
     );
   }
 
   lines.push(
     '',
-    `_Envie o comprovante (foto ou PDF) aqui no chat assim que realizar o pagamento._`
+    `_Envie o comprovante ou boleto (foto ou PDF) aqui no chat assim que realizar o pagamento._`
   );
 
   return lines.join('\n');
@@ -252,33 +262,73 @@ export function createTelegramBot(deps: TelegramBotDependencies): Bot {
           logger.warn({ err }, 'Falha ao enviar mensagem de boas-vindas e capacidades');
         });
 
-      // 2nd Message: Due dates of already analyzed and unpaid bills
+      // 2nd Message: Due dates of already analyzed and unpaid bills (with historical prediction for MANUAL_REQUIRED)
       try {
         const [currentMonth, prevMonth] = getCurrentAndPreviousReferenceMonths();
-        const { data: unpaidCycles } = await deps.supabase
-          .from('bill_cycles')
-          .select('*, bill_providers(name, due_day_default)')
-          .in('reference_month', [currentMonth, prevMonth])
-          .in('status', ['PDF_CAPTURED', 'MANUAL_REQUIRED', 'WAITING_CAPTCHA'])
-          .order('due_date', { ascending: true });
+        const [unpaidRes, historyRes] = await Promise.all([
+          deps.supabase
+            .from('bill_cycles')
+            .select('*, bill_providers(name, due_day_default)')
+            .in('reference_month', [currentMonth, prevMonth])
+            .in('status', ['PDF_CAPTURED', 'MANUAL_REQUIRED', 'WAITING_CAPTCHA'])
+            .order('due_date', { ascending: true }),
+          deps.supabase
+            .from('bill_cycles')
+            .select('provider_id, reference_month, due_date, paid_at, amount_cents')
+            .order('reference_month', { ascending: false })
+            .limit(100),
+        ]);
 
-        const unpaidItems: UnpaidAnalyzedCycleItem[] = (unpaidCycles ?? []).map(
+        const historyByProvider = new Map<
+          string,
+          Array<{
+            reference_month: string;
+            due_date: string | null;
+            paid_at: string | null;
+            amount_cents: number | null;
+          }>
+        >();
+        for (const h of historyRes.data ?? []) {
+          const list = historyByProvider.get(h.provider_id) ?? [];
+          list.push(h);
+          historyByProvider.set(h.provider_id, list);
+        }
+
+        const unpaidItems: UnpaidAnalyzedCycleItem[] = (unpaidRes.data ?? []).map(
           (c) => {
             const prov = (
               c as unknown as {
                 bill_providers?: { name: string; due_day_default?: number };
               }
             ).bill_providers;
-            const fallbackDueDate = prov?.due_day_default
-              ? `${c.reference_month}-${String(prov.due_day_default).padStart(2, '0')}`
-              : null;
+
+            const isManualRequired = c.status === 'MANUAL_REQUIRED';
+            const providerHistory = historyByProvider.get(c.provider_id) ?? [];
+            const prediction = predictDueDateFromHistory({
+              targetReferenceMonth: c.reference_month,
+              historicalCycles: providerHistory,
+              defaultDueDay: prov?.due_day_default ?? 10,
+            });
+
+            const resolvedDueDate = isManualRequired
+              ? prediction.predictedDueDate
+              : (c.due_date ?? prediction.predictedDueDate);
+
+            const resolvedAmount =
+              c.amount_cents ?? prediction.predictedAmountCents;
 
             return {
               providerName: prov?.name ?? 'Conta',
               referenceMonth: c.reference_month,
               status: c.status,
-              amountCents: c.amount_cents,
-              dueDate: c.due_date ?? fallbackDueDate,
+              amountCents: resolvedAmount,
+              dueDate: resolvedDueDate,
+              isPredictedFromHistory:
+                isManualRequired || (!c.due_date && prediction.sampleSize > 0),
+              predictionExplanation:
+                isManualRequired && prediction.sampleSize > 0
+                  ? `${prediction.sampleSize} meses anteriores`
+                  : null,
               invoiceDriveUrl: c.invoice_drive_url,
             };
           }
@@ -337,25 +387,75 @@ export function createTelegramBot(deps: TelegramBotDependencies): Bot {
 
   bot.command('pendentes', async (ctx) => {
     const [currentMonth, prevMonth] = getCurrentAndPreviousReferenceMonths();
-    const { data: cycles } = await deps.supabase
-      .from('bill_cycles')
-      .select('*, bill_providers(name, category)')
-      .in('reference_month', [currentMonth, prevMonth])
-      .neq('status', 'PAID_RECONCILED')
-      .order('reference_month', { ascending: false });
+    const [cyclesRes, historyRes] = await Promise.all([
+      deps.supabase
+        .from('bill_cycles')
+        .select('*, bill_providers(name, category, due_day_default)')
+        .in('reference_month', [currentMonth, prevMonth])
+        .neq('status', 'PAID_RECONCILED')
+        .order('reference_month', { ascending: false }),
+      deps.supabase
+        .from('bill_cycles')
+        .select('provider_id, reference_month, due_date, paid_at, amount_cents')
+        .order('reference_month', { ascending: false })
+        .limit(100),
+    ]);
 
+    const cycles = cyclesRes.data;
     if (!cycles || cycles.length === 0) {
       await ctx.reply('🎉 Nenhuma conta pendente nos ciclos atuais!');
       return;
     }
 
+    const historyByProvider = new Map<
+      string,
+      Array<{
+        reference_month: string;
+        due_date: string | null;
+        paid_at: string | null;
+        amount_cents: number | null;
+      }>
+    >();
+    for (const h of historyRes.data ?? []) {
+      const list = historyByProvider.get(h.provider_id) ?? [];
+      list.push(h);
+      historyByProvider.set(h.provider_id, list);
+    }
+
     const lines: string[] = ['⏳ *Contas Pendentes de Pagamento ou Captura:*', ''];
     for (const c of cycles) {
-      const prov = (c as unknown as { bill_providers?: { name: string } }).bill_providers;
+      const prov = (
+        c as unknown as {
+          bill_providers?: { name: string; due_day_default?: number };
+        }
+      ).bill_providers;
       const name = prov?.name ?? c.provider_id;
-      const amount = formatCentsToBrl(c.amount_cents);
-      const due = c.due_date ? ` (Venc: ${c.due_date})` : '';
-      lines.push(`• *${name}* [${c.reference_month}]: \`${c.status}\` — ${amount}${due}`);
+
+      const prediction = predictDueDateFromHistory({
+        targetReferenceMonth: c.reference_month,
+        historicalCycles: historyByProvider.get(c.provider_id) ?? [],
+        defaultDueDay: prov?.due_day_default ?? 10,
+      });
+
+      const isManual = c.status === 'MANUAL_REQUIRED';
+      const effectiveDue = isManual
+        ? prediction.predictedDueDate
+        : (c.due_date ?? prediction.predictedDueDate);
+      const formattedDue = effectiveDue
+        ? effectiveDue.split('-').reverse().join('/')
+        : '';
+      const dueLabel = formattedDue
+        ? isManual
+          ? ` — 🔮 Venc. Previsto: *${formattedDue}*`
+          : ` (Venc: ${formattedDue})`
+        : '';
+      const amount = formatCentsToBrl(
+        c.amount_cents ?? prediction.predictedAmountCents
+      );
+
+      lines.push(
+        `• *${name}* [${c.reference_month}]: \`${c.status}\` — ${amount}${dueLabel}`
+      );
     }
 
     await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });

@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   Bot as BotIcon,
   FolderGit2,
+  BarChart3,
 } from 'lucide-react';
 import type {
   BillCycleRow,
@@ -14,43 +15,65 @@ import type {
 } from '@secretaria/shared';
 import {
   BACKEND_API_URL,
-  DEMO_CYCLES,
+  DEMO_ALL_CYCLES,
   DEMO_EXECUTION_LOGS,
   DEMO_PROVIDERS,
 } from './lib/supabase.js';
 import { MonthlyOverview } from './components/MonthlyOverview.js';
+import { BIAnalyticsView } from './components/BIAnalyticsView.js';
 import { AuditLogsView } from './components/AuditLogsView.js';
 import { ProviderWizard } from './components/ProviderWizard.js';
 
-type ActiveTab = 'overview' | 'audit' | 'wizard';
+type ActiveTab = 'overview' | 'bi' | 'audit' | 'wizard';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
-  const [referenceMonth, setReferenceMonth] = useState('2026-11');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('bi');
+  const [referenceMonth, setReferenceMonth] = useState('2026-08');
   const [providers, setProviders] = useState<BillProviderRow[]>(DEMO_PROVIDERS);
-  const [cycles, setCycles] = useState<BillCycleRow[]>(DEMO_CYCLES);
+  const [allCycles, setAllCycles] = useState<BillCycleRow[]>(DEMO_ALL_CYCLES);
+  const [cycles, setCycles] = useState<BillCycleRow[]>(
+    DEMO_ALL_CYCLES.filter((c) => c.reference_month === '2026-08')
+  );
   const [logs, setLogs] = useState<ExecutionLogRow[]>(DEMO_EXECUTION_LOGS);
   const [triggeringId, setTriggeringId] = useState<string | null>(null);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    setCycles(allCycles.filter((c) => c.reference_month === referenceMonth));
+  }, [referenceMonth, allCycles]);
+
+  useEffect(() => {
     let active = true;
-    fetch(`${BACKEND_API_URL}/api/dashboard/state?reference_month=${encodeURIComponent(referenceMonth)}`)
+    fetch(
+      `${BACKEND_API_URL}/api/dashboard/state?reference_month=${encodeURIComponent(referenceMonth)}`
+    )
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { providers?: BillProviderRow[]; cycles?: BillCycleRow[]; logs?: ExecutionLogRow[] } | null) => {
-        if (!active || !data) return;
-        if (Array.isArray(data.providers) && data.providers.length > 0) {
-          setProviders(data.providers);
+      .then(
+        (
+          data: {
+            providers?: BillProviderRow[];
+            cycles?: BillCycleRow[];
+            allCycles?: BillCycleRow[];
+            logs?: ExecutionLogRow[];
+          } | null
+        ) => {
+          if (!active || !data) return;
+          if (Array.isArray(data.providers) && data.providers.length > 0) {
+            setProviders(data.providers);
+          }
+          if (Array.isArray(data.allCycles) && data.allCycles.length > 0) {
+            setAllCycles(data.allCycles);
+          }
+          if (Array.isArray(data.cycles) && data.cycles.length > 0) {
+            setCycles(data.cycles);
+          }
+          if (Array.isArray(data.logs) && data.logs.length > 0) {
+            setLogs(data.logs);
+          }
         }
-        if (Array.isArray(data.cycles)) {
-          setCycles(data.cycles);
-        }
-        if (Array.isArray(data.logs) && data.logs.length > 0) {
-          setLogs(data.logs);
-        }
-      })
+      )
       .catch(() => {
-        // Fallback to DEMO state when backend is unreachable
+        // Fallback to DEMO state extracted from Google Drive Contas Mensais
       });
     return () => {
       active = false;
@@ -119,11 +142,11 @@ export const App: React.FC = () => {
                   SecretariaCururu
                 </h1>
                 <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                  100% Free Tier
+                  100% Free Tier + BI
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Automação Playwright • Google Drive • Conciliação Telegram & Gemini Vision
+                Automação Playwright • Google Drive (Contas Mensais) • BI & Previsão Preditiva Telegram
               </p>
             </div>
           </div>
@@ -137,11 +160,20 @@ export const App: React.FC = () => {
                 onChange={(e) => setReferenceMonth(e.target.value)}
                 className="bg-transparent font-semibold text-white focus:outline-none"
               >
-                <option value="2026-11" className="bg-slate-900">
-                  2026-11
+                <option value="2026-09" className="bg-slate-900">
+                  2026-09 (Setembro)
                 </option>
-                <option value="2026-10" className="bg-slate-900">
-                  2026-10
+                <option value="2026-08" className="bg-slate-900">
+                  2026-08 (Agosto)
+                </option>
+                <option value="2026-07" className="bg-slate-900">
+                  2026-07 (Julho)
+                </option>
+                <option value="2026-06" className="bg-slate-900">
+                  2026-06 (Junho)
+                </option>
+                <option value="2026-05" className="bg-slate-900">
+                  2026-05 (Maio)
                 </option>
               </select>
             </div>
@@ -154,7 +186,7 @@ export const App: React.FC = () => {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="max-w-7xl mx-auto px-6 flex items-center gap-2 border-t border-slate-800/60 pt-2">
+        <div className="max-w-7xl mx-auto px-6 flex flex-wrap items-center gap-2 border-t border-slate-800/60 pt-2">
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
@@ -170,6 +202,19 @@ export const App: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setActiveTab('bi')}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
+              activeTab === 'bi'
+                ? 'border-emerald-400 text-emerald-300'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            2. BI: Consumo, Tarifas & Previsões
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('audit')}
             className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
               activeTab === 'audit'
@@ -178,7 +223,7 @@ export const App: React.FC = () => {
             }`}
           >
             <ScrollText className="w-4 h-4" />
-            2. Auditoria & Logs ({logs.length})
+            3. Auditoria & Logs ({logs.length})
           </button>
 
           <button
@@ -191,7 +236,7 @@ export const App: React.FC = () => {
             }`}
           >
             <Wand2 className="w-4 h-4" />
-            3. Wizard de Novo Processo
+            4. Wizard de Novo Processo
           </button>
         </div>
       </header>
@@ -219,6 +264,10 @@ export const App: React.FC = () => {
             onTriggerProvider={(p) => handleTriggerProvider(p)}
             triggeringId={triggeringId}
           />
+        )}
+
+        {activeTab === 'bi' && (
+          <BIAnalyticsView providers={providers} allCycles={allCycles} />
         )}
 
         {activeTab === 'audit' && (

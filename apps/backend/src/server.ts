@@ -79,14 +79,14 @@ export async function buildFastifyServer(
   }
 
   // --------------------------------------------------------------------------
-  // 2.5. Dashboard API: Get Live State (Providers, Cycles, Execution Logs)
+  // 2.5. Dashboard API: Get Live State (Providers, Cycles, All Historical Cycles for BI, Execution Logs)
   // --------------------------------------------------------------------------
   app.get<{ Querystring: { reference_month?: string } }>(
     '/api/dashboard/state',
     async (request, reply) => {
       const refMonth = request.query.reference_month ?? formatReferenceMonth();
 
-      const [providersRes, cyclesRes, logsRes] = await Promise.all([
+      const [providersRes, cyclesRes, allCyclesRes, logsRes] = await Promise.all([
         deps.supabase
           .from('bill_providers')
           .select(
@@ -97,6 +97,11 @@ export async function buildFastifyServer(
           .from('bill_cycles')
           .select('*')
           .eq('reference_month', refMonth),
+        deps.supabase
+          .from('bill_cycles')
+          .select('*')
+          .order('reference_month', { ascending: true })
+          .limit(200),
         deps.supabase
           .from('execution_logs')
           .select('*')
@@ -110,6 +115,7 @@ export async function buildFastifyServer(
           encrypted_secrets: {},
         })),
         cycles: cyclesRes.data ?? [],
+        allCycles: allCyclesRes.data ?? [],
         logs: logsRes.data ?? [],
       });
     }

@@ -156,4 +156,38 @@ describe('Zod Workflow Schemas & Seed Templates Validation', () => {
     expect(parseBrlToCents('1.450,05')).toBe(145005);
     expect(formatCentsToBrl(24590)).toContain('245,90');
   });
+
+  it('predicts due dates and amounts from historical bill cycles for MANUAL_REQUIRED bills', async () => {
+    const { predictDueDateFromHistory } = await import('./supabase.js');
+
+    // Aluguel always due on day 30 of the same reference month (offset 0)
+    const rentPrediction = predictDueDateFromHistory({
+      targetReferenceMonth: '2026-09',
+      historicalCycles: [
+        { reference_month: '2026-08', due_date: '2026-08-30', amount_cents: 130000 },
+        { reference_month: '2026-07', due_date: '2026-07-30', amount_cents: 130000 },
+        { reference_month: '2026-06', due_date: '2026-06-30', amount_cents: 130000 },
+      ],
+      defaultDueDay: 5,
+    });
+
+    expect(rentPrediction.predictedDueDate).toBe('2026-09-30');
+    expect(rentPrediction.predictedAmountCents).toBe(130000);
+    expect(rentPrediction.confidence).toBe('HIGH');
+
+    // Luz EDP due on day 08 of the NEXT month (offset +1)
+    const edpPrediction = predictDueDateFromHistory({
+      targetReferenceMonth: '2026-09',
+      historicalCycles: [
+        { reference_month: '2026-08', due_date: '2026-09-08', amount_cents: 19363 },
+        { reference_month: '2026-07', due_date: '2026-08-10', amount_cents: 19391 },
+        { reference_month: '2026-06', due_date: '2026-07-08', amount_cents: 26382 },
+      ],
+      defaultDueDay: 15,
+    });
+
+    expect(edpPrediction.predictedDueDate).toBe('2026-10-08');
+    expect(edpPrediction.monthOffset).toBe(1);
+    expect(edpPrediction.predictedAmountCents).toBe(19363);
+  });
 });
