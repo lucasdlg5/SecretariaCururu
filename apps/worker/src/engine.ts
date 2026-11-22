@@ -59,6 +59,35 @@ export interface WorkflowExecutionResult {
 }
 
 /**
+ * Resolves the first visible locator among `primarySelector` and optional `fallbackSelectors`.
+ */
+async function resolveResilientLocator(
+  page: Page,
+  primarySelector: string,
+  fallbackSelectors: string[] = [],
+  decryptedSecrets: Record<string, string> = {},
+  timeoutMs = 10000
+) {
+  const candidates = [primarySelector, ...fallbackSelectors].map((sel) =>
+    interpolateSecrets(sel, decryptedSecrets)
+  );
+  const perCandidateTimeout = Math.max(2000, Math.floor(timeoutMs / candidates.length));
+
+  for (const candidate of candidates) {
+    const locator = page.locator(candidate).first();
+    const visible = await locator
+      .waitFor({ state: 'visible', timeout: perCandidateTimeout })
+      .then(() => true)
+      .catch(() => false);
+    if (visible) {
+      return locator;
+    }
+  }
+
+  return page.locator(candidates[0]).first();
+}
+
+/**
  * Generic Declarative Playwright Workflow Interpreter.
  * Executes JSONB `workflow_steps` validated via Zod without any hardcoded provider logic.
  */
@@ -91,7 +120,7 @@ export async function executeDeclarativeWorkflow(
         case 'goto': {
           await ctx.page.goto(step.url, {
             waitUntil: 'domcontentloaded',
-            timeout: 30000,
+            timeout: step.timeoutMs ?? 30000,
           });
           break;
         }
@@ -103,33 +132,41 @@ export async function executeDeclarativeWorkflow(
               `Secret '${step.secretKey}' não encontrado em encrypted_secrets do provedor.`
             );
           }
-          const locator = ctx.page.locator(step.selector).first();
-          await locator.waitFor({ state: 'visible', timeout: 15000 });
+          const locator = await resolveResilientLocator(
+            ctx.page,
+            step.selector,
+            step.fallbackSelectors,
+            ctx.decryptedSecrets,
+            step.timeoutMs ?? 15000
+          );
+          await locator.waitFor({ state: 'visible', timeout: step.timeoutMs ?? 15000 });
           await locator.fill(secretValue);
           break;
         }
 
         case 'click': {
-          const resolvedSelector = interpolateSecrets(
+          const locator = await resolveResilientLocator(
+            ctx.page,
             step.selector,
-            ctx.decryptedSecrets
+            step.fallbackSelectors,
+            ctx.decryptedSecrets,
+            step.timeoutMs ?? 10000
           );
-          const primaryLocator = ctx.page.locator(resolvedSelector).first();
-          const isPrimaryVisible = await primaryLocator
-            .isVisible({ timeout: 5000 })
+          const isLocatorVisible = await locator
+            .isVisible({ timeout: 3000 })
             .catch(() => false);
 
-          if (isPrimaryVisible) {
-            await primaryLocator.click({ timeout: 10000 });
+          if (isLocatorVisible) {
+            await locator.click({ timeout: step.timeoutMs ?? 10000 });
           } else if (step.textFallback) {
             const resolvedText = interpolateSecrets(
               step.textFallback,
               ctx.decryptedSecrets
             );
             const fallbackLocator = ctx.page.getByText(resolvedText).first();
-            await fallbackLocator.click({ timeout: 10000 });
+            await fallbackLocator.click({ timeout: step.timeoutMs ?? 10000 });
           } else {
-            await primaryLocator.click({ timeout: 10000 });
+            await locator.click({ timeout: step.timeoutMs ?? 10000 });
           }
           break;
         }
@@ -137,7 +174,13 @@ export async function executeDeclarativeWorkflow(
         case 'dismiss_optional_modal': {
           // Never throws if the optional modal is absent
           try {
-            const modalButton = ctx.page.locator(step.selector).first();
+            const modalButton = await resolveResilientLocator(
+              ctx.page,
+              step.selector,
+              step.fallbackSelectors,
+              ctx.decryptedSecrets,
+              step.timeoutMs
+            );
             const appeared = await modalButton
               .waitFor({ state: 'visible', timeout: step.timeoutMs })
               .then(() => true)
@@ -153,16 +196,28 @@ export async function executeDeclarativeWorkflow(
         }
 
         case 'wait_for': {
-          const locator = ctx.page.locator(step.selector).first();
+          const locator = await resolveResilientLocator(
+            ctx.page,
+            step.selector,
+            step.fallbackSelectors,
+            ctx.decryptedSecrets,
+            step.timeoutMs
+          );
           await locator.waitFor({ state: 'visible', timeout: step.timeoutMs });
           break;
         }
 
         case 'extract_value': {
           try {
-            const locator = ctx.page.locator(step.selector).first();
+            const locator = await resolveResilientLocator(
+              ctx.page,
+              step.selector,
+              step.fallbackSelectors,
+              ctx.decryptedSecrets,
+              step.timeoutMs ?? 8000
+            );
             const textContent = await locator
-              .textContent({ timeout: 8000 })
+              .textContent({ timeout: step.timeoutMs ?? 8000 })
               .catch(() => null);
 
             if (textContent) {
@@ -280,7 +335,13 @@ export async function executeDeclarativeWorkflow(
         }
 
         case 'download_pdf': {
-          const trigger = ctx.page.locator(step.triggerSelector).first();
+          const trigger = await resolveResilientLocator(
+            ctx.page,
+            step.triggerSelector,
+            step.fallbackSelectors,
+            ctx.decryptedSecrets,
+            step.timeoutMs ?? 10000
+          );
           const triggerVisible = await trigger
             .isVisible({ timeout: 6000 })
             .catch(() => false);
@@ -307,15 +368,22 @@ export async function executeDeclarativeWorkflow(
             }
           };
 
-          ctx.page.on('response', responseHandler);
+          const browserContext = ctx.page.context();
+          browserContext.on('response', responseHandler);
 
           try {
             const downloadPromise = ctx.page
-              .waitForEvent('download', { timeout: 20000 })
+              .waitForEvent('download', { timeout: step.timeoutMs ?? 20000 })
+              .catch(() => null);
+            const popupPromise = browserContext
+              .waitForEvent('page', { timeout: step.timeoutMs ?? 15000 })
               .catch(() => null);
 
             await trigger.click({ timeout: 10000 });
-            const download = await downloadPromise;
+            const [download, popupPage] = await Promise.all([
+              downloadPromise,
+              popupPromise,
+            ]);
 
             if (download) {
               const filePath = await download.path();
@@ -324,9 +392,19 @@ export async function executeDeclarativeWorkflow(
               }
             } else if (interceptedPdfBuffer) {
               pdfBuffer = interceptedPdfBuffer;
+            } else if (popupPage) {
+              await popupPage.waitForLoadState('domcontentloaded').catch(() => undefined);
+              const popupUrl = popupPage.url();
+              if (popupUrl && popupUrl.startsWith('http')) {
+                const apiResp = await browserContext.request.get(popupUrl);
+                if (apiResp.ok()) {
+                  pdfBuffer = await apiResp.body();
+                }
+              }
+              await popupPage.close().catch(() => undefined);
             }
           } finally {
-            ctx.page.off('response', responseHandler);
+            browserContext.off('response', responseHandler);
           }
 
           if (!pdfBuffer) {

@@ -45,29 +45,35 @@ export type DriveFolderLayout = z.infer<typeof DriveFolderLayoutSchema>;
 export const GotoStepSchema = z.object({
   action: z.literal('goto'),
   url: z.string().url('URL inválida no passo goto'),
+  timeoutMs: z.number().int().min(500).max(60000).optional(),
   description: z.string().optional(),
 });
 
 export const FillSecretStepSchema = z.object({
   action: z.literal('fill_secret'),
   selector: z.string().min(1, 'Seletor obrigatório em fill_secret'),
+  fallbackSelectors: z.array(z.string().min(1)).optional(),
   secretKey: z
     .string()
     .min(1, 'Chave de secret obrigatória')
     .regex(/^[A-Z0-9_]+$/, 'secretKey deve estar em UPPER_SNAKE_CASE'),
+  timeoutMs: z.number().int().min(500).max(60000).optional(),
   description: z.string().optional(),
 });
 
 export const ClickStepSchema = z.object({
   action: z.literal('click'),
   selector: z.string().min(1, 'Seletor obrigatório em click'),
+  fallbackSelectors: z.array(z.string().min(1)).optional(),
   textFallback: z.string().optional(),
+  timeoutMs: z.number().int().min(500).max(60000).optional(),
   description: z.string().optional(),
 });
 
 export const DismissOptionalModalStepSchema = z.object({
   action: z.literal('dismiss_optional_modal'),
   selector: z.string().min(1, 'Seletor obrigatório em dismiss_optional_modal'),
+  fallbackSelectors: z.array(z.string().min(1)).optional(),
   timeoutMs: z.number().int().min(500).max(30000).default(4000),
   description: z.string().optional(),
 });
@@ -75,6 +81,7 @@ export const DismissOptionalModalStepSchema = z.object({
 export const WaitForStepSchema = z.object({
   action: z.literal('wait_for'),
   selector: z.string().min(1, 'Seletor obrigatório em wait_for'),
+  fallbackSelectors: z.array(z.string().min(1)).optional(),
   timeoutMs: z.number().int().min(500).max(60000).default(15000),
   description: z.string().optional(),
 });
@@ -83,6 +90,8 @@ export const CaptchaHitlStepSchema = z.object({
   action: z.literal('captcha_hitl'),
   imageSelector: z.string().min(1, 'imageSelector obrigatório em captcha_hitl'),
   inputSelector: z.string().min(1, 'inputSelector obrigatório em captcha_hitl'),
+  fallbackSelectors: z.array(z.string().min(1)).optional(),
+  timeoutMs: z.number().int().min(500).max(300000).optional(),
   mode: z.enum(['IMAGE_OR_MANUAL_LINK']).default('IMAGE_OR_MANUAL_LINK'),
   description: z.string().optional(),
 });
@@ -90,13 +99,17 @@ export const CaptchaHitlStepSchema = z.object({
 export const DownloadPdfStepSchema = z.object({
   action: z.literal('download_pdf'),
   triggerSelector: z.string().min(1, 'triggerSelector obrigatório em download_pdf'),
+  fallbackSelectors: z.array(z.string().min(1)).optional(),
+  timeoutMs: z.number().int().min(500).max(60000).optional(),
   description: z.string().optional(),
 });
 
 export const ExtractValueStepSchema = z.object({
   action: z.literal('extract_value'),
   selector: z.string().min(1, 'Seletor obrigatório em extract_value'),
+  fallbackSelectors: z.array(z.string().min(1)).optional(),
   regex: z.string().default('R\\$\\s*([\\d\\.,]+)'),
+  timeoutMs: z.number().int().min(500).max(60000).optional(),
   description: z.string().optional(),
 });
 

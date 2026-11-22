@@ -44,15 +44,34 @@ function cleanupExpiredAttachments(): void {
 }
 
 /**
- * Parses `TELEGRAM_ALLOWED_CHAT_IDS` comma-separated string into a Set of string IDs.
+ * Parses `TELEGRAM_ALLOWED_CHAT_IDS` comma-separated string into a Set of normalized string IDs or @usernames (lowercase, without leading @).
  */
 export function parseAllowedChatIds(raw?: string): Set<string> {
   const source = raw ?? process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? '';
   const ids = source
     .split(',')
-    .map((s) => s.trim())
+    .map((s) => s.trim().replace(/^@/, '').toLowerCase())
     .filter(Boolean);
   return new Set(ids);
+}
+
+/**
+ * Checks if a chat ID or username matches the configured `TELEGRAM_ALLOWED_CHAT_IDS` whitelist.
+ */
+export function isTelegramUserAllowed(
+  chatId?: string | number | null,
+  username?: string | null,
+  rawAllowed?: string
+): boolean {
+  const allowed = parseAllowedChatIds(rawAllowed);
+  if (allowed.size === 0) return false;
+  if (chatId !== undefined && chatId !== null && allowed.has(String(chatId).toLowerCase())) {
+    return true;
+  }
+  if (username && allowed.has(username.replace(/^@/, '').toLowerCase())) {
+    return true;
+  }
+  return false;
 }
 
 export interface TelegramBotDependencies {
@@ -71,14 +90,14 @@ export function createTelegramBot(deps: TelegramBotDependencies): Bot {
   const bot = new Bot(token);
 
   // --------------------------------------------------------------------------
-  // 1. Whitelist Middleware (TELEGRAM_ALLOWED_CHAT_IDS)
+  // 1. Whitelist Middleware (TELEGRAM_ALLOWED_CHAT_IDS: numeric IDs or @usernames)
   // --------------------------------------------------------------------------
   bot.use(async (ctx, next) => {
-    const allowedIds = parseAllowedChatIds();
     const chatId = ctx.chat?.id ? String(ctx.chat.id) : null;
+    const username = ctx.from?.username ?? (ctx.chat as { username?: string } | undefined)?.username ?? null;
 
-    if (!chatId || (allowedIds.size > 0 && !allowedIds.has(chatId))) {
-      logger.warn({ chatId }, 'Acesso bloqueado: Chat ID fora da whitelist do Telegram');
+    if (!isTelegramUserAllowed(chatId, username)) {
+      logger.warn({ chatId, username }, 'Acesso bloqueado: Chat ID / Username fora da whitelist do Telegram');
       return;
     }
 

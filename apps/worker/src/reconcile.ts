@@ -421,7 +421,7 @@ export async function reconcileSingleProvider(
  */
 export async function runDailyReconciliation(): Promise<void> {
   const supabase = createServiceSupabaseClient();
-  const driveService = new GoogleDriveService();
+  const driveService = new GoogleDriveService({ supabaseClient: supabase });
   const bot = process.env.TELEGRAM_BOT_TOKEN
     ? new Bot(process.env.TELEGRAM_BOT_TOKEN)
     : null;

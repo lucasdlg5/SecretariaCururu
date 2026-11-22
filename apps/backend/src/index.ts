@@ -17,8 +17,8 @@ async function start(): Promise<void> {
   const githubTrigger = new GitHubActionsTriggerService();
 
   let telegramBot;
-  if (process.env.TELEGRAM_BOT_TOKEN && process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-    const driveService = new GoogleDriveService();
+  if (process.env.TELEGRAM_BOT_TOKEN) {
+    const driveService = new GoogleDriveService({ supabaseClient: supabase });
     telegramBot = createTelegramBot({
       supabase,
       driveService,
@@ -26,7 +26,7 @@ async function start(): Promise<void> {
     });
   } else {
     logger.warn(
-      'TELEGRAM_BOT_TOKEN ou GOOGLE_SERVICE_ACCOUNT_JSON ausente: iniciando API sem instância ativa do bot.'
+      'TELEGRAM_BOT_TOKEN ausente: iniciando API sem instância ativa do bot.'
     );
   }
 

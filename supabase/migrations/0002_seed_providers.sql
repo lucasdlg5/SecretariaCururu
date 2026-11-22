@@ -49,7 +49,7 @@ INSERT INTO public.bill_providers (
         {"action": "dismiss_optional_modal", "selector": "button:has-text(\"Não enviar\")", "timeoutMs": 4000, "description": "Dispensar envio de protocolo"},
         {"action": "click", "selector": "button:has-text(\"Enviar por e-mail\"), input[value=\"email\"]", "textFallback": "Enviar", "description": "Solicitar envio por e-mail"}
     ]'::jsonb,
-    '{}'::jsonb
+    '{"EMAIL": {"ciphertext": "olvcPBQiCkMryu5zYKqPJEf5iY7ia5dMcnCloel0", "iv": "QMgfF7KhaHcJjVPk", "authTag": "D92HatDlbN9mfPjfGCRaSg=="}, "PASSWORD": {"ciphertext": "NRBvGLD1tn/e7nU=", "iv": "XIfJQZZ+xjjejvKx", "authTag": "yXOsGpqmRyRxNyqVdQsWVA=="}, "CPF": {"ciphertext": "976yOgk5i3XnxLPRClE=", "iv": "ucdIxOANZ4jZuRm5", "authTag": "BYjAfRBiuqfV5Hrzk7zf9g=="}, "UC_NUMBER": {"ciphertext": "hpO84Jb/nvn6hgCej+Wr", "iv": "xdLBTC2YGfhNjLz2", "authTag": "yuYWDuIr8VpBCCuCELbKIQ=="}}'::jsonb
 ),
 -- 2. Internet (NJCI)
 (
@@ -73,7 +73,7 @@ INSERT INTO public.bill_providers (
         {"action": "download_pdf", "triggerSelector": "button:has-text(\"Imprimir\"), a:has-text(\"Imprimir\")", "description": "Baixar PDF da fatura NJCI"}
     ]'::jsonb,
     '[]'::jsonb,
-    '{}'::jsonb
+    '{"CPF": {"ciphertext": "s2A5knPmZZjriDqZYzY=", "iv": "V6zf9aNPgY6QNXYU", "authTag": "bw4dSl4Cb5TAASVVl9lalQ=="}}'::jsonb
 ),
 -- 3. Gás (Comgás)
 (
@@ -99,7 +99,7 @@ INSERT INTO public.bill_providers (
         {"action": "download_pdf", "triggerSelector": "button:has-text(\"Segunda via PDF\"), a:has-text(\"Segunda via PDF\")", "description": "Baixar Segunda via PDF Comgás"}
     ]'::jsonb,
     '[]'::jsonb,
-    '{}'::jsonb
+    '{"EMAIL": {"ciphertext": "3AQ7JlygzP4HjYJkCASc8e7Yvr2PTwPOpdCpeY3Q", "iv": "4DgYPTAQUqo3YcR5", "authTag": "1DB7F1vd4LEJWzXuW/7lUQ=="}, "PASSWORD": {"ciphertext": "3K1VTvdGNRXtny8=", "iv": "5NNvzGR6TYO795B9", "authTag": "0epvURfYwb/eBrhI1Hm9gg=="}, "CPF": {"ciphertext": "F/7dty9xnEJ3upLtBNc=", "iv": "0peXoxvwurTQjhPp", "authTag": "GXyOg0rL76V1iRl+Tbamqg=="}}'::jsonb
 ),
 -- 4. Água (Sabesp / Provedor de Água - Inativo por padrão, pronto para reativação)
 (
@@ -119,7 +119,7 @@ INSERT INTO public.bill_providers (
         {"action": "download_pdf", "triggerSelector": "button:has-text(\"Segunda Via\")", "description": "Baixar PDF da conta de água"}
     ]'::jsonb,
     '[]'::jsonb,
-    '{}'::jsonb
+    '{"CPF": {"ciphertext": "A/Y8nfL6ZjV3wDwHEQw=", "iv": "5c+TlR2sCXaOp8JK", "authTag": "Z4Br103/g2n7uPM0T4FWbg=="}, "PASSWORD": {"ciphertext": "My6pVbMVWt4tmog=", "iv": "WuVkodNztwhLHmw9", "authTag": "LrgBol+3yioJ6AJICcdvGQ=="}}'::jsonb
 ),
 -- 5. Condomínio (Lembrete Manual via Telegram)
 (
@@ -149,4 +149,9 @@ INSERT INTO public.bill_providers (
     '[]'::jsonb,
     '{}'::jsonb
 )
-ON CONFLICT (name) DO NOTHING;
+ON CONFLICT (name) DO UPDATE SET
+    encrypted_secrets = EXCLUDED.encrypted_secrets,
+    workflow_steps = EXCLUDED.workflow_steps,
+    fallback_workflow_steps = EXCLUDED.fallback_workflow_steps,
+    portal_url = EXCLUDED.portal_url,
+    updated_at = now();

@@ -1,0 +1,516 @@
+{
+  "version": "1.0.0",
+  "validatedRounds": 3,
+  "generatedAt": "2026-11-21T23:22:00-03:00",
+  "providers": {
+    "LUZ_EDP": {
+      "name": "Luz - EDP",
+      "category": "LUZ",
+      "mode": "WEB_AUTOMATION",
+      "portal_url": "https://www.edponline.com.br/para-sua-casa/login",
+      "required_secrets": ["EMAIL", "PASSWORD", "CPF", "UC_NUMBER"],
+      "workflow_steps": [
+        {
+          "action": "goto",
+          "url": "https://www.edponline.com.br/para-sua-casa/login",
+          "timeoutMs": 30000,
+          "description": "Acessar página de login do portal EDP Online"
+        },
+        {
+          "action": "dismiss_optional_modal",
+          "selector": "#onetrust-accept-btn-handler",
+          "fallbackSelectors": [
+            "button:has-text(\"Aceitar todos os cookies\")",
+            "#onetrust-button-group button"
+          ],
+          "timeoutMs": 4000,
+          "description": "Aceitar banner de cookies OneTrust caso exibido na sessão limpa"
+        },
+        {
+          "action": "click",
+          "selector": "label[for=\"option-2\"]",
+          "fallbackSelectors": [
+            "#option-2",
+            "label:has-text(\"São Paulo\")"
+          ],
+          "textFallback": "São Paulo",
+          "timeoutMs": 8000,
+          "description": "Selecionar estado de São Paulo antes de autenticar"
+        },
+        {
+          "action": "fill_secret",
+          "selector": "input#Email[name=\"Email\"]",
+          "fallbackSelectors": [
+            "input[name=\"Email\"][type=\"email\"]",
+            "input[placeholder=\"Digite seu e-mail\"]"
+          ],
+          "secretKey": "EMAIL",
+          "timeoutMs": 10000,
+          "description": "Preencher e-mail do titular ({{secret:EMAIL}})"
+        },
+        {
+          "action": "fill_secret",
+          "selector": "input#Senha[name=\"Senha\"]",
+          "fallbackSelectors": [
+            "input[name=\"Senha\"][type=\"password\"]",
+            "input[placeholder=\"Digite sua senha\"]"
+          ],
+          "secretKey": "PASSWORD",
+          "timeoutMs": 10000,
+          "description": "Preencher senha do titular ({{secret:PASSWORD}})"
+        },
+        {
+          "action": "click",
+          "selector": "button#acessar[type=\"submit\"]",
+          "fallbackSelectors": [
+            "button#acessar",
+            "button[type=\"submit\"]:has-text(\"Entrar\")"
+          ],
+          "textFallback": "Entrar",
+          "timeoutMs": 15000,
+          "description": "Confirmar login e aguardar redirecionamento para seleção de instalação"
+        },
+        {
+          "action": "wait_for",
+          "selector": "a.instalacaoOuUnidadeConsumidora",
+          "fallbackSelectors": [
+            "a:has-text(\"{{secret:UC_NUMBER}}\")",
+            ".instalacaoOuUnidadeConsumidora"
+          ],
+          "timeoutMs": 15000,
+          "description": "Aguardar listagem de Unidades Consumidoras"
+        },
+        {
+          "action": "click",
+          "selector": "a.instalacaoOuUnidadeConsumidora:has-text(\"{{secret:UC_NUMBER}}\")",
+          "fallbackSelectors": [
+            "a:has-text(\"{{secret:UC_NUMBER}}\")",
+            "a.instalacaoOuUnidadeConsumidora"
+          ],
+          "textFallback": "{{secret:UC_NUMBER}}",
+          "timeoutMs": 12000,
+          "description": "Clicar na Unidade Consumidora ({{secret:UC_NUMBER}})"
+        },
+        {
+          "action": "dismiss_optional_modal",
+          "selector": "#modal-alteracao-cadastral a[data-dismiss=\"modal\"]:has-text(\"Mais tarde\")",
+          "fallbackSelectors": [
+            "#modal-alteracao-cadastral a:has-text(\"Mais tarde\")",
+            "a[data-dismiss=\"modal\"]:has-text(\"Mais tarde\")"
+          ],
+          "timeoutMs": 10000,
+          "description": "Fechar modal assíncrono de atualização cadastral ('Mais tarde')"
+        },
+        {
+          "action": "dismiss_optional_modal",
+          "selector": "#modal-oferta-pix-automatico button:has-text(\"Agora não\")",
+          "fallbackSelectors": [
+            "#modal-oferta-pix-automatico button.btn-outline-main-2",
+            "button:has-text(\"Agora não\")"
+          ],
+          "timeoutMs": 4000,
+          "description": "Fechar modal intermitente de oferta do PIX Automático ('Agora não')"
+        },
+        {
+          "action": "click",
+          "selector": "a.edp-btn[href=\"/servicos/extrato-de-contas\"]",
+          "fallbackSelectors": [
+            "a[href=\"/servicos/extrato-de-contas\"]:has-text(\"Abrir essa conta\")",
+            "a:has-text(\"Abrir essa conta\")"
+          ],
+          "textFallback": "Abrir essa conta",
+          "timeoutMs": 12000,
+          "description": "Clicar em 'Abrir essa conta' para navegar ao Extrato de Contas"
+        },
+        {
+          "action": "wait_for",
+          "selector": "a.card.card-extrato:has-text(\"Visualizar fatura\")",
+          "fallbackSelectors": [
+            "a.card-link:has-text(\"Visualizar fatura\")",
+            "div.card-body h3.font-weight-bold"
+          ],
+          "timeoutMs": 15000,
+          "description": "Aguardar carregamento dos cards de fatura no Extrato de Contas"
+        },
+        {
+          "action": "extract_value",
+          "selector": "div.card-body h3.font-weight-bold",
+          "fallbackSelectors": [
+            ".card-body h3:has-text(\"R$\")",
+            "h3.font-weight-bold"
+          ],
+          "regex": "R\\$\\s*([\\d\\.,]+)",
+          "timeoutMs": 8000,
+          "description": "Extrair valor total da fatura em aberto no card de resumo"
+        },
+        {
+          "action": "click",
+          "selector": "a.card.card-extrato:has-text(\"Visualizar fatura\")",
+          "fallbackSelectors": [
+            "a.card-link:has-text(\"Visualizar fatura\")",
+            "a:has-text(\"Visualizar fatura\")"
+          ],
+          "textFallback": "Visualizar fatura",
+          "timeoutMs": 12000,
+          "description": "Abrir modal '2ª Via de Fatura' (filtrando para evitar o card 'Pagar com Pix')"
+        },
+        {
+          "action": "wait_for",
+          "selector": "a.i-block.text-center.pull-right:has-text(\"Baixar\")",
+          "fallbackSelectors": [
+            "#pdfViewer iframe.pdfobject",
+            "a:has-text(\"Baixar\")"
+          ],
+          "timeoutMs": 25000,
+          "description": "Aguardar renderização do modal da 2ª via e botão Baixar"
+        },
+        {
+          "action": "download_pdf",
+          "triggerSelector": "a.i-block.text-center.pull-right:has-text(\"Baixar\")",
+          "fallbackSelectors": [
+            "a.pull-right:has-text(\"Baixar\")",
+            "a:has-text(\"Baixar\")"
+          ],
+          "timeoutMs": 25000,
+          "description": "Baixar arquivo PDF nativo da fatura EDP"
+        }
+      ],
+      "fallback_workflow_steps": [
+        {
+          "action": "goto",
+          "url": "https://www.edponline.com.br/servicos-externos/segunda-via",
+          "timeoutMs": 30000,
+          "description": "Acessar portal externo de Segunda Via Simplificada EDP"
+        },
+        {
+          "action": "dismiss_optional_modal",
+          "selector": "button:has-text(\"Entendi\")",
+          "fallbackSelectors": [
+            ".modal button:has-text(\"Entendi\")",
+            "a:has-text(\"Entendi\")"
+          ],
+          "timeoutMs": 5000,
+          "description": "Fechar modal inicial 'Aviso importante' ('Entendi')"
+        },
+        {
+          "action": "click",
+          "selector": "label[for=\"option-2\"]",
+          "fallbackSelectors": [
+            "#option-2",
+            "label:has-text(\"São Paulo\")"
+          ],
+          "textFallback": "São Paulo",
+          "timeoutMs": 8000,
+          "description": "Selecionar estado de São Paulo"
+        },
+        {
+          "action": "fill_secret",
+          "selector": "input#Cpf[name=\"Cpf\"]",
+          "fallbackSelectors": [
+            "input[name=\"Cpf\"]",
+            "#Cpf"
+          ],
+          "secretKey": "CPF",
+          "timeoutMs": 10000,
+          "description": "Preencher CPF do titular ({{secret:CPF}})"
+        },
+        {
+          "action": "fill_secret",
+          "selector": "input#InstalacaoOuUnidadeConsumidora[name=\"InstalacaoOuUnidadeConsumidora\"]",
+          "fallbackSelectors": [
+            "input[name=\"InstalacaoOuUnidadeConsumidora\"]",
+            "#InstalacaoOuUnidadeConsumidora"
+          ],
+          "secretKey": "UC_NUMBER",
+          "timeoutMs": 10000,
+          "description": "Preencher Unidade Consumidora ({{secret:UC_NUMBER}})"
+        },
+        {
+          "action": "click",
+          "selector": "button#btn-avancar[type=\"submit\"]",
+          "fallbackSelectors": [
+            "button#btn-avancar",
+            "button.btn-main-1:has-text(\"Avançar\")"
+          ],
+          "textFallback": "Avançar",
+          "timeoutMs": 12000,
+          "description": "Avançar para seleção de ação de segunda via"
+        },
+        {
+          "action": "dismiss_optional_modal",
+          "selector": "form#form-protocolo-atendimento button[data-dismiss=\"modal\"]:has-text(\"Não enviar\")",
+          "fallbackSelectors": [
+            "button.edp-btn-dark[data-dismiss=\"modal\"]",
+            "button:has-text(\"Não enviar\")"
+          ],
+          "timeoutMs": 6000,
+          "description": "Dispensar envio de protocolo inicial ('Não enviar')"
+        },
+        {
+          "action": "click",
+          "selector": "label.custom-radio__label[for=\"email-escolhido-1\"]",
+          "fallbackSelectors": [
+            "#email-escolhido-1",
+            "label[for=\"email-escolhido-1\"]"
+          ],
+          "timeoutMs": 8000,
+          "description": "Selecionar e-mail cadastrado do titular"
+        },
+        {
+          "action": "click",
+          "selector": "button.btn.btn-main-1[type=\"submit\"]",
+          "fallbackSelectors": [
+            "button[type=\"submit\"]:has-text(\"Avançar\")",
+            "button:has-text(\"Enviar\")"
+          ],
+          "textFallback": "Avançar",
+          "timeoutMs": 12000,
+          "description": "Confirmar solicitação de envio da 2ª via por e-mail"
+        }
+      ]
+    },
+    "INTERNET_NJCI": {
+      "name": "Internet - NJCI",
+      "category": "INTERNET",
+      "mode": "WEB_AUTOMATION",
+      "portal_url": "https://portal.njci.com.br/auth/login",
+      "required_secrets": ["CPF"],
+      "workflow_steps": [
+        {
+          "action": "goto",
+          "url": "https://portal.njci.com.br/auth/login",
+          "timeoutMs": 30000,
+          "description": "Acessar página inicial de login do Portal NJCI"
+        },
+        {
+          "action": "click",
+          "selector": "div.MuiCard-root:has-text(\"Facilita\")",
+          "fallbackSelectors": [
+            "div.MuiPaper-root:has-text(\"Acesse seus boletos rapidamente\")",
+            "div:has-text(\"Facilita\")"
+          ],
+          "textFallback": "Facilita",
+          "timeoutMs": 12000,
+          "description": "Clicar no card 'Facilita' para abrir o modal 'Acesse o facilita'"
+        },
+        {
+          "action": "fill_secret",
+          "selector": "[role=\"dialog\"] input[name=\"cpfCnpj\"]",
+          "fallbackSelectors": [
+            "input[name=\"cpfCnpj\"][type=\"text\"]",
+            "[role=\"dialog\"] input[type=\"text\"]"
+          ],
+          "secretKey": "CPF",
+          "timeoutMs": 10000,
+          "description": "Preencher CPF do titular ({{secret:CPF}}) no modal Facilita"
+        },
+        {
+          "action": "captcha_hitl",
+          "imageSelector": "[role=\"dialog\"] iframe[title=\"reCAPTCHA\"]",
+          "inputSelector": "[role=\"dialog\"] input[name=\"cpfCnpj\"]",
+          "fallbackSelectors": [
+            "iframe[src*=\"google.com/recaptcha/api2/anchor\"]",
+            "iframe[title=\"reCAPTCHA\"]"
+          ],
+          "timeoutMs": 300000,
+          "mode": "IMAGE_OR_MANUAL_LINK",
+          "description": "Desafio Google reCAPTCHA v2 interativo (pausa / escalonamento HITL via Telegram)"
+        },
+        {
+          "action": "click",
+          "selector": "[role=\"dialog\"] button:has-text(\"Acessar\")",
+          "fallbackSelectors": [
+            "[role=\"dialog\"] button.MuiButton-containedPrimary:has-text(\"Acessar\")",
+            "button:has-text(\"Acessar\")"
+          ],
+          "textFallback": "Acessar",
+          "timeoutMs": 12000,
+          "description": "Clicar em 'Acessar' após validação do reCAPTCHA"
+        },
+        {
+          "action": "wait_for",
+          "selector": "main div.MuiCard-root:has-text(\"Vencimento\")",
+          "fallbackSelectors": [
+            "div.MuiCard-root:has-text(\"Número da Fatura\")",
+            "div.MuiPaper-elevation8:has-text(\"Vencimento\")"
+          ],
+          "timeoutMs": 35000,
+          "description": "Aguardar retorno de GetPortalTitleList?isFacilita=true e renderização dos cards visíveis (ignorando o card oculto no índice 0)"
+        },
+        {
+          "action": "extract_value",
+          "selector": "main div.MuiCard-root:has-text(\"Vencimento\") h6.MuiTypography-colorPrimary:has-text(\"R$\")",
+          "fallbackSelectors": [
+            "div.MuiCard-root:has-text(\"Vencimento\") h6:has-text(\"R$\")",
+            "main div.MuiCard-root:has-text(\"Valor\")"
+          ],
+          "regex": "R\\$\\s*([\\d\\.,]+)",
+          "timeoutMs": 8000,
+          "description": "Extrair valor vigente (com desconto de pontualidade) do card de vencimento mais próximo"
+        },
+        {
+          "action": "click",
+          "selector": "main div.MuiCard-root:has-text(\"Vencimento\") button:has-text(\"Visualizar\")",
+          "fallbackSelectors": [
+            "div.MuiCard-root:has-text(\"Número da Fatura\") button.MuiButton-containedPrimary:has-text(\"Visualizar\")",
+            "button.MuiButton-containedPrimary:has-text(\"Visualizar\")"
+          ],
+          "textFallback": "Visualizar",
+          "timeoutMs": 12000,
+          "description": "Clicar em 'Visualizar' no primeiro card visível (vencimento mais próximo) para abrir o modal 'Visualizar Título'"
+        },
+        {
+          "action": "wait_for",
+          "selector": "[role=\"dialog\"]:has-text(\"Visualizar Título\") button:has-text(\"Visualizar PDF\")",
+          "fallbackSelectors": [
+            "[role=\"dialog\"] button.MuiButton-containedPrimary:has-text(\"Visualizar PDF\")",
+            "button:has-text(\"Visualizar PDF\")"
+          ],
+          "timeoutMs": 10000,
+          "description": "Aguardar retorno de GetUrlBillet e abertura do modal 'Visualizar Título'"
+        },
+        {
+          "action": "download_pdf",
+          "triggerSelector": "[role=\"dialog\"]:has-text(\"Visualizar Título\") button:has-text(\"Visualizar PDF\")",
+          "fallbackSelectors": [
+            "[role=\"dialog\"] button.MuiButton-containedPrimary:has-text(\"Visualizar PDF\")",
+            "button:has-text(\"Visualizar PDF\")"
+          ],
+          "timeoutMs": 20000,
+          "description": "Clicar em 'Visualizar PDF' e capturar o stream inline application/pdf da aba popup (/financial_receivable_titles/boletos/{hash}?printOrigin=1)"
+        }
+      ],
+      "fallback_workflow_steps": []
+    },
+    "GAS_COMGAS": {
+      "name": "Gás - Comgás",
+      "category": "GAS",
+      "mode": "WEB_AUTOMATION",
+      "portal_url": "https://virtual.comgas.com.br/login-identity-server",
+      "required_secrets": ["EMAIL", "PASSWORD", "CPF"],
+      "workflow_steps": [
+        {
+          "action": "goto",
+          "url": "https://virtual.comgas.com.br/login-identity-server",
+          "timeoutMs": 30000,
+          "description": "Navegar diretamente para a rota de autenticação federada Residencial/Comercial (WSO2 Identity Server)"
+        },
+        {
+          "action": "wait_for",
+          "selector": "input#username[data-testid=\"login-page-username-input\"]",
+          "fallbackSelectors": [
+            "input#username[name=\"username\"]",
+            "input[name=\"username\"]"
+          ],
+          "timeoutMs": 20000,
+          "description": "Aguardar formulário de login do WSO2 Identity Server (integra-is.comgas.com.br)"
+        },
+        {
+          "action": "fill_secret",
+          "selector": "input#username[data-testid=\"login-page-username-input\"]",
+          "fallbackSelectors": [
+            "input#username[name=\"username\"]",
+            "input[name=\"username\"]"
+          ],
+          "secretKey": "EMAIL",
+          "timeoutMs": 10000,
+          "description": "Preencher e-mail Comgás ({{secret:EMAIL}})"
+        },
+        {
+          "action": "fill_secret",
+          "selector": "input#password[name=\"password\"]",
+          "fallbackSelectors": [
+            "input[name=\"password\"][type=\"password\"]",
+            "#password"
+          ],
+          "secretKey": "PASSWORD",
+          "timeoutMs": 10000,
+          "description": "Preencher senha Comgás ({{secret:PASSWORD}})"
+        },
+        {
+          "action": "click",
+          "selector": "button#btnContinue[type=\"submit\"]",
+          "fallbackSelectors": [
+            "button#btnContinue",
+            "button[type=\"submit\"]:has-text(\"Entrar\")"
+          ],
+          "textFallback": "Entrar",
+          "timeoutMs": 15000,
+          "description": "Submeter login no WSO2 Identity Server"
+        },
+        {
+          "action": "dismiss_optional_modal",
+          "selector": "#onetrust-accept-btn-handler",
+          "fallbackSelectors": [
+            "button:has-text(\"Aceitar Todos\")",
+            "#onetrust-button-group button"
+          ],
+          "timeoutMs": 4000,
+          "description": "Aceitar banner OneTrust caso exibido após redirect"
+        },
+        {
+          "action": "dismiss_optional_modal",
+          "selector": "app-listar-conta-contrato .card",
+          "fallbackSelectors": [
+            "div[class*=\"conta-contrato\"]",
+            "a[href*=\"portal-para-voce\"]"
+          ],
+          "timeoutMs": 8000,
+          "description": "Selecionar card da Conta Contrato caso redirecionado para /conta-contrato/listar"
+        },
+        {
+          "action": "wait_for",
+          "selector": "cg-para-voce-ultima-fatura cg-button button.cg-btn--blue:has-text(\"PDF da 2ª Via\")",
+          "fallbackSelectors": [
+            "button.cg-btn:has-text(\"PDF da 2ª Via\")",
+            "p.detalhes-fatura__valor"
+          ],
+          "timeoutMs": 20000,
+          "description": "Aguardar renderização do card de última fatura em /portal-para-voce"
+        },
+        {
+          "action": "dismiss_optional_modal",
+          "selector": ".validador-dados-modal button.close",
+          "fallbackSelectors": [
+            "div.validador-dados-modal button:has-text(\"×\")",
+            ".modal-content button.close"
+          ],
+          "timeoutMs": 8000,
+          "description": "Fechar modal assíncrono de atualização cadastral (.validador-dados-modal 'X')"
+        },
+        {
+          "action": "dismiss_optional_modal",
+          "selector": "app-tour-guide .tour__fechar i.icon-cg-fechar",
+          "fallbackSelectors": [
+            ".tour__start i.icon-cg-fechar",
+            "i.icon-cg-fechar"
+          ],
+          "timeoutMs": 4000,
+          "description": "Fechar pop-up intermitente de tour de boas-vindas clicando diretamente no ícone i.icon-cg-fechar"
+        },
+        {
+          "action": "extract_value",
+          "selector": "cg-para-voce-ultima-fatura p.detalhes-fatura__valor",
+          "fallbackSelectors": [
+            "p.font-weight-bold.detalhes-fatura__valor",
+            ".detalhes-fatura__card p:has-text(\"R$\")"
+          ],
+          "regex": "R\\$\\s*([\\d\\.,]+)",
+          "timeoutMs": 8000,
+          "description": "Extrair valor da fatura atual da Comgás"
+        },
+        {
+          "action": "download_pdf",
+          "triggerSelector": "cg-para-voce-ultima-fatura cg-button button.cg-btn--blue:has-text(\"PDF da 2ª Via\")",
+          "fallbackSelectors": [
+            "button.cg-btn:has-text(\"PDF da 2ª Via\")",
+            "button:has-text(\"PDF da 2ª Via\")"
+          ],
+          "timeoutMs": 25000,
+          "description": "Baixar arquivo PDF da 2ª via Comgás (consultaDebitoPDF.pdf via /api/debito/fatura/download)"
+        }
+      ],
+      "fallback_workflow_steps": []
+    }
+  }
+}

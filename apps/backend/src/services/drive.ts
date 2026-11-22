@@ -3,6 +3,7 @@ import { google, type drive_v3 } from 'googleapis';
 import {
   type BillCategory,
   type DriveFolderLayout,
+  type TypedSupabaseClient,
   DriveFolderLayoutSchema,
   createSanitizedLogger,
 } from '@secretaria/shared';
@@ -84,17 +85,24 @@ export function buildDriveFolderHierarchy(params: {
 }
 
 export class GoogleDriveService {
-  private drive: drive_v3.Drive;
+  private drive?: drive_v3.Drive;
   private rootFolderId: string;
+  private supabase?: TypedSupabaseClient;
+  private supabaseBucket: string;
   private folderCache = new Map<string, string>();
 
   constructor(options?: {
     driveClient?: drive_v3.Drive;
     rootFolderId?: string;
     serviceAccountJson?: string;
+    supabaseClient?: TypedSupabaseClient;
+    supabaseBucket?: string;
   }) {
     this.rootFolderId =
       options?.rootFolderId ?? process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID ?? '';
+    this.supabase = options?.supabaseClient;
+    this.supabaseBucket =
+      options?.supabaseBucket ?? process.env.SUPABASE_STORAGE_BUCKET ?? 'CururuBucket';
 
     if (options?.driveClient) {
       this.drive = options.driveClient;
@@ -103,7 +111,13 @@ export class GoogleDriveService {
 
     const rawJson =
       options?.serviceAccountJson ?? process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? '';
-    if (!rawJson) {
+    if (!rawJson || rawJson.includes('"..."')) {
+      if (this.supabase) {
+        logger.warn(
+          'GOOGLE_SERVICE_ACCOUNT_JSON ausente ou placeholder: operando apenas com backup no Supabase Storage.'
+        );
+        return;
+      }
       throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurado.');
     }
 
@@ -129,6 +143,9 @@ export class GoogleDriveService {
    * Idempotently finds or creates a subfolder inside `parentId`.
    */
   async ensureFolder(name: string, parentId: string): Promise<string> {
+    if (!this.drive) {
+      throw new Error('Cliente Google Drive não inicializado.');
+    }
     const cacheKey = `${parentId}/${name}`;
     const cached = this.folderCache.get(cacheKey);
     if (cached) return cached;
@@ -190,7 +207,44 @@ export class GoogleDriveService {
   }
 
   /**
-   * Uploads an invoice or receipt to the organized Google Drive folder structure.
+   * Uploads an invoice or receipt to the Supabase Storage backup bucket (`CururuBucket`).
+   */
+  async uploadToSupabaseStorage(
+    params: UploadDocumentParams,
+    folderPath: string[],
+    fileName: string
+  ): Promise<UploadedDriveFile> {
+    if (!this.supabase) {
+      throw new Error('Cliente Supabase não configurado para upload no Storage.');
+    }
+
+    const storagePath = [...folderPath, fileName].join('/');
+    const { error } = await this.supabase.storage
+      .from(this.supabaseBucket)
+      .upload(storagePath, params.buffer, {
+        contentType: params.mimeType,
+        upsert: true,
+      });
+
+    if (error) {
+      throw new Error(`Falha ao enviar para Supabase Storage (${this.supabaseBucket}): ${error.message}`);
+    }
+
+    const { data: publicUrlData } = this.supabase.storage
+      .from(this.supabaseBucket)
+      .getPublicUrl(storagePath);
+
+    return {
+      fileId: storagePath,
+      webViewLink: publicUrlData.publicUrl,
+      fileName,
+      folderPath,
+    };
+  }
+
+  /**
+   * Uploads an invoice or receipt to the organized Google Drive folder structure,
+   * and replicates/falls back to Supabase Storage (`CururuBucket`) if configured.
    */
   async uploadDocument(
     params: UploadDocumentParams,
@@ -203,8 +257,18 @@ export class GoogleDriveService {
       layout,
     });
 
-    const targetFolderId = await this.ensureFolderPath(folderPath);
     const fileName = buildStandardDriveFileName(params);
+
+    // If Google Drive client is not initialized, use Supabase Storage backup directly
+    if (!this.drive) {
+      logger.info(
+        { fileName, bucket: this.supabaseBucket, folderPath: folderPath.join('/') },
+        'Enviando documento para o Supabase Storage (modo backup primário)'
+      );
+      return this.uploadToSupabaseStorage(params, folderPath, fileName);
+    }
+
+    const targetFolderId = await this.ensureFolderPath(folderPath);
 
     logger.info(
       {
@@ -235,6 +299,13 @@ export class GoogleDriveService {
 
     const webViewLink =
       response.data.webViewLink ?? `https://drive.google.com/file/d/${fileId}/view`;
+
+    // Optional background backup replication to Supabase Storage (`CururuBucket`)
+    if (this.supabase) {
+      this.uploadToSupabaseStorage(params, folderPath, fileName).catch((err) => {
+        logger.warn({ err, fileName }, 'Falha ao replicar backup no Supabase Storage');
+      });
+    }
 
     return {
       fileId,
