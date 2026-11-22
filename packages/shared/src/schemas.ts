@@ -36,7 +36,11 @@ export type CycleStatus = z.infer<typeof CycleStatusSchema>;
 export const CaptchaStatusSchema = z.enum(['PENDING', 'SOLVED', 'EXPIRED']);
 export type CaptchaStatus = z.infer<typeof CaptchaStatusSchema>;
 
-export const DriveFolderLayoutSchema = z.enum(['BY_MONTH', 'BY_TYPE']);
+export const DriveFolderLayoutSchema = z.enum([
+  'BY_MONTH',
+  'BY_TYPE',
+  'CONTAS_MENSAIS',
+]);
 export type DriveFolderLayout = z.infer<typeof DriveFolderLayoutSchema>;
 
 // ============================================================================

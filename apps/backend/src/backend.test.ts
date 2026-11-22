@@ -98,6 +98,133 @@ describe('Google Drive Folder Layout & Standard File Naming', () => {
     expect(uploaded.fileId).toBe('file-123');
     expect(uploaded.fileName).toBe('2026-11_LUZ_LUZ_EDP_FATURA.pdf');
     expect(uploaded.folderPath).toEqual(['2026', '2026-11', 'Faturas']);
+    expect(uploaded.storageProvider).toBe('GOOGLE_DRIVE');
+  });
+
+  it('automatically recognizes existing #N-Mês/YYYY folders in Contas Mensais and uses Google Drive as primary', async () => {
+    const {
+      buildContasMensaisMonthFolderName,
+      matchesContasMensaisFolderName,
+    } = await import('./services/drive.js');
+
+    expect(buildContasMensaisMonthFolderName('2026-04')).toBe('#1-Abril/2026');
+    expect(buildContasMensaisMonthFolderName('2026-11')).toBe('#8-Novembro/2026');
+    expect(matchesContasMensaisFolderName('#8-Novembro/2026', '2026-11')).toBe(true);
+    expect(matchesContasMensaisFolderName('#10Janeiro-/2027', '2027-01')).toBe(true);
+    expect(matchesContasMensaisFolderName('#12-Março/2027', '2027-03')).toBe(true);
+
+    const listMock = vi
+      .fn()
+      // 1st call: list root children -> finds #8-Novembro/2026
+      .mockResolvedValueOnce({
+        data: {
+          files: [
+            { id: 'folder-out-2026', name: '#7-Outubro/2026' },
+            { id: 'folder-nov-2026', name: '#8-Novembro/2026' },
+          ],
+        },
+      })
+      // 2nd call: list children of #8-Novembro/2026 -> finds existing "Contas"
+      .mockResolvedValueOnce({
+        data: {
+          files: [{ id: 'folder-nov-contas', name: 'Contas' }],
+        },
+      });
+
+    const createMock = vi.fn().mockResolvedValueOnce({
+      data: {
+        id: 'drive-file-nov-1',
+        webViewLink: 'https://drive.google.com/file/d/drive-file-nov-1/view',
+      },
+    });
+
+    const supabaseUploadMock = vi.fn();
+
+    const driveService = new GoogleDriveService({
+      rootFolderId: '1Xe9NditnlI8eLQl-kMZgPVoCUlvgVZ73',
+      driveClient: {
+        files: {
+          list: listMock,
+          create: createMock,
+        },
+      } as unknown as NonNullable<
+        ConstructorParameters<typeof GoogleDriveService>[0]
+      >['driveClient'],
+      supabaseClient: {
+        storage: {
+          from: () => ({
+            upload: supabaseUploadMock,
+          }),
+        },
+      } as unknown as TypedSupabaseClient,
+    });
+
+    const uploaded = await driveService.uploadDocument({
+      referenceMonth: '2026-11',
+      category: 'LUZ',
+      providerName: 'Luz - EDP',
+      kind: 'FATURA',
+      extension: 'pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4 nov'),
+    });
+
+    expect(uploaded.storageProvider).toBe('GOOGLE_DRIVE');
+    expect(uploaded.fileId).toBe('drive-file-nov-1');
+    expect(uploaded.folderPath).toEqual(['#8-Novembro/2026', 'Contas']);
+    // Supabase Storage MUST NOT be called when primary Google Drive succeeds
+    expect(supabaseUploadMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to Supabase Storage ONLY when primary Google Drive throws an error', async () => {
+    const listMock = vi
+      .fn()
+      .mockRejectedValue(new Error('Google Drive API quota or permission error'));
+    const createMock = vi
+      .fn()
+      .mockRejectedValue(new Error('Google Drive API quota or permission error'));
+
+    const supabaseUploadMock = vi.fn().mockResolvedValue({ error: null });
+    const getPublicUrlMock = vi.fn().mockReturnValue({
+      data: { publicUrl: 'https://supabase.co/storage/v1/object/public/CururuBucket/doc.pdf' },
+    });
+
+    const driveService = new GoogleDriveService({
+      rootFolderId: '1Xe9NditnlI8eLQl-kMZgPVoCUlvgVZ73',
+      driveClient: {
+        files: {
+          list: listMock,
+          create: createMock,
+        },
+      } as unknown as NonNullable<
+        ConstructorParameters<typeof GoogleDriveService>[0]
+      >['driveClient'],
+      supabaseClient: {
+        storage: {
+          from: () => ({
+            upload: supabaseUploadMock,
+            getPublicUrl: getPublicUrlMock,
+          }),
+        },
+      } as unknown as TypedSupabaseClient,
+    });
+
+    const uploaded = await driveService.uploadDocument(
+      {
+        referenceMonth: '2026-11',
+        category: 'LUZ',
+        providerName: 'Luz - EDP',
+        kind: 'FATURA',
+        extension: 'pdf',
+        mimeType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.4 fallback'),
+      },
+      'CONTAS_MENSAIS'
+    );
+
+    expect(uploaded.storageProvider).toBe('SUPABASE_STORAGE');
+    expect(uploaded.folderPath).toEqual(['#8-Novembro/2026', 'Contas']);
+    expect(supabaseUploadMock).toHaveBeenCalledOnce();
   });
 });
 
