@@ -245,15 +245,22 @@ export const ProviderWizard: React.FC<ProviderWizardProps> = ({
     <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 space-y-6">
       {/* Preset Quick-Load Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-800">
-        <div>
-          <h2 className="text-base font-semibold text-white flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-emerald-400" />
-            Wizard de Novo Processo de Fatura (Construtor Declarativo)
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Carregue um template homologado (EDP, NJCI, Comgás, Água, Condomínio, Aluguel) ou
-            construa um fluxo web customizado validado por Zod.
-          </p>
+        <div className="flex items-start gap-3">
+          <img
+            src="/logo.png"
+            alt="SecretariaCururu"
+            className="w-10 h-10 rounded-xl object-cover border border-emerald-500/40 shrink-0"
+          />
+          <div>
+            <h2 className="text-base font-semibold text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              Wizard de Novo Processo de Fatura (Construtor Declarativo)
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Carregue um template homologado (EDP, NJCI, Comgás, Água, Condomínio, Aluguel) ou
+              construa um fluxo web customizado validado por Zod.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

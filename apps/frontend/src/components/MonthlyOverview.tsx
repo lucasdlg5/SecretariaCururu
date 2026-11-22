@@ -155,13 +155,20 @@ export const MonthlyOverview: React.FC<MonthlyOverviewProps> = ({
       {/* Provider Status Table */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-white">
-              Status de Contas Domésticas ({referenceMonth})
-            </h2>
-            <p className="text-xs text-slate-400">
-              Acompanhamento em tempo real da captura via Playwright, Drive e conciliação no Telegram
-            </p>
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo.png"
+              alt="SecretariaCururu"
+              className="w-9 h-9 rounded-lg object-cover border border-emerald-500/40 shrink-0"
+            />
+            <div>
+              <h2 className="text-base font-semibold text-white">
+                Status de Contas Domésticas ({referenceMonth})
+              </h2>
+              <p className="text-xs text-slate-400">
+                Acompanhamento em tempo real da captura via Playwright, Drive e conciliação no Telegram
+              </p>
+            </div>
           </div>
         </div>
 

@@ -23,17 +23,24 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({
     <div className="space-y-6">
       {/* Header Banner */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Terminal className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-base font-semibold text-white">
-              Auditoria de Execuções & Logs Sanitizados
-            </h2>
+        <div className="flex items-start gap-3">
+          <img
+            src="/logo.png"
+            alt="SecretariaCururu"
+            className="w-10 h-10 rounded-xl object-cover border border-emerald-500/40 shrink-0"
+          />
+          <div>
+            <div className="flex items-center gap-2">
+              <Terminal className="w-4 h-4 text-emerald-400" />
+              <h2 className="text-base font-semibold text-white">
+                Auditoria de Execuções & Logs Sanitizados
+              </h2>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Todos os logs passam pelo middleware Pino Log Redactor antes de serem persistidos no
+              Supabase (CPFs, e-mails, senhas e códigos de barras são ofuscados).
+            </p>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Todos os logs passam pelo middleware Pino Log Redactor antes de serem persistidos no
-            Supabase (CPFs, e-mails, senhas e códigos de barras são ofuscados).
-          </p>
         </div>
 
         <button

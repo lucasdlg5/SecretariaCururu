@@ -656,11 +656,18 @@ export const BIAnalyticsView: React.FC<BIAnalyticsViewProps> = ({
 
       {/* Row 4: Actionable BI Findings & Anomaly Insights Discovered in the Drive PDFs */}
       <div className="rounded-xl border border-emerald-500/25 bg-slate-900/80 p-6 space-y-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-emerald-400" />
-          <h3 className="text-base font-semibold text-white">
-            7. Insights & Anomalias Financeiras Descobertas nas Faturas Reais (Google Drive)
-          </h3>
+        <div className="flex items-center gap-3">
+          <img
+            src="/logo.png"
+            alt="SecretariaCururu"
+            className="w-9 h-9 rounded-lg object-cover border border-emerald-500/40 shrink-0"
+          />
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-emerald-400" />
+            <h3 className="text-base font-semibold text-white">
+              7. Insights & Anomalias Financeiras Descobertas nas Faturas Reais (Google Drive)
+            </h3>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">

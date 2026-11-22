@@ -4,7 +4,6 @@ import {
   ScrollText,
   Wand2,
   ShieldCheck,
-  Bot as BotIcon,
   FolderGit2,
   BarChart3,
 } from 'lucide-react';
@@ -155,10 +154,12 @@ export const App: React.FC = () => {
       {/* Top Navbar */}
       <header className="border-b border-slate-800/80 bg-slate-900/80 backdrop-blur sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <BotIcon className="w-5 h-5" />
-            </div>
+          <div className="flex items-center gap-3.5">
+            <img
+              src="/logo.png"
+              alt="SecretariaCururu Logo"
+              className="w-11 h-11 rounded-xl object-cover border-2 border-emerald-500/40 shadow-md shadow-emerald-950/50"
+            />
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-bold tracking-tight text-white">
@@ -287,7 +288,11 @@ export const App: React.FC = () => {
 
         {isLoading ? (
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-12 text-center space-y-3">
-            <div className="w-8 h-8 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin mx-auto" />
+            <img
+              src="/logo.png"
+              alt="SecretariaCururu"
+              className="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-400/60 mx-auto animate-pulse"
+            />
             <p className="text-sm font-medium text-slate-300">
               Sincronizando dados em tempo real com o Supabase ({referenceMonth})...
             </p>
@@ -324,6 +329,22 @@ export const App: React.FC = () => {
           </>
         )}
       </main>
+
+      {/* Footer with Official Program Icon */}
+      <footer className="border-t border-slate-800/70 bg-slate-900/50 py-4 px-6 mt-8">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+          <div className="flex items-center gap-2.5">
+            <img
+              src="/logo.png"
+              alt="SecretariaCururu"
+              className="w-6 h-6 rounded-md object-cover border border-emerald-500/40"
+            />
+            <span className="font-semibold text-slate-200">SecretariaCururu</span>
+            <span>• Automação, Cofre AES-256-GCM & BI de Contas Domésticas</span>
+          </div>
+          <span>100% Free Tier (Render • GitHub Actions • Supabase • Google Drive)</span>
+        </div>
+      </footer>
     </div>
   );
 };
