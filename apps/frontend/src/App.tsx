@@ -27,23 +27,20 @@ import { ProviderWizard } from './components/ProviderWizard.js';
 type ActiveTab = 'overview' | 'bi' | 'audit' | 'wizard';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('bi');
-  const [referenceMonth, setReferenceMonth] = useState('2026-08');
-  const [providers, setProviders] = useState<BillProviderRow[]>(DEMO_PROVIDERS);
+  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+  const [referenceMonth, setReferenceMonth] = useState('2026-11');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [providers, setProviders] = useState<BillProviderRow[]>([]);
   const [allCycles, setAllCycles] = useState<BillCycleRow[]>(DEMO_ALL_CYCLES);
-  const [cycles, setCycles] = useState<BillCycleRow[]>(
-    DEMO_ALL_CYCLES.filter((c) => c.reference_month === '2026-08')
-  );
-  const [logs, setLogs] = useState<ExecutionLogRow[]>(DEMO_EXECUTION_LOGS);
+  const [cycles, setCycles] = useState<BillCycleRow[]>([]);
+  const [logs, setLogs] = useState<ExecutionLogRow[]>([]);
   const [triggeringId, setTriggeringId] = useState<string | null>(null);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    setCycles(allCycles.filter((c) => c.reference_month === referenceMonth));
-  }, [referenceMonth, allCycles]);
-
-  useEffect(() => {
     let active = true;
+    setIsLoading(true);
+
     fetch(
       `${BACKEND_API_URL}/api/dashboard/state?reference_month=${encodeURIComponent(referenceMonth)}`
     )
@@ -57,24 +54,50 @@ export const App: React.FC = () => {
             logs?: ExecutionLogRow[];
           } | null
         ) => {
-          if (!active || !data) return;
-          if (Array.isArray(data.providers) && data.providers.length > 0) {
+          if (!active) return;
+          if (data && Array.isArray(data.providers) && data.providers.length > 0) {
             setProviders(data.providers);
-          }
-          if (Array.isArray(data.allCycles) && data.allCycles.length > 0) {
-            setAllCycles(data.allCycles);
-          }
-          if (Array.isArray(data.cycles) && data.cycles.length > 0) {
-            setCycles(data.cycles);
-          }
-          if (Array.isArray(data.logs) && data.logs.length > 0) {
-            setLogs(data.logs);
+            setCycles(Array.isArray(data.cycles) ? data.cycles : []);
+            if (Array.isArray(data.allCycles) && data.allCycles.length > 0) {
+              // Merge historical Drive cycles (2026-05..2026-09) with live Supabase cycles
+              const liveKeys = new Set(
+                data.allCycles.map((c) => `${c.provider_id}_${c.reference_month}`)
+              );
+              const merged = [
+                ...data.allCycles,
+                ...DEMO_ALL_CYCLES.filter(
+                  (d) => !liveKeys.has(`${d.provider_id}_${d.reference_month}`)
+                ),
+              ];
+              setAllCycles(merged);
+            }
+            if (Array.isArray(data.logs)) {
+              setLogs(data.logs);
+            }
+          } else {
+            // Offline fallback: use real historical Contas Mensais dataset
+            setProviders(DEMO_PROVIDERS);
+            setCycles(
+              DEMO_ALL_CYCLES.filter((c) => c.reference_month === referenceMonth)
+            );
+            setLogs(DEMO_EXECUTION_LOGS);
           }
         }
       )
       .catch(() => {
-        // Fallback to DEMO state extracted from Google Drive Contas Mensais
+        if (!active) return;
+        setProviders(DEMO_PROVIDERS);
+        setCycles(
+          DEMO_ALL_CYCLES.filter((c) => c.reference_month === referenceMonth)
+        );
+        setLogs(DEMO_EXECUTION_LOGS);
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoading(false);
+        }
       });
+
     return () => {
       active = false;
     };
@@ -160,20 +183,26 @@ export const App: React.FC = () => {
                 onChange={(e) => setReferenceMonth(e.target.value)}
                 className="bg-transparent font-semibold text-white focus:outline-none"
               >
+                <option value="2026-11" className="bg-slate-900">
+                  2026-11 (Novembro - Atual)
+                </option>
+                <option value="2026-10" className="bg-slate-900">
+                  2026-10 (Outubro)
+                </option>
                 <option value="2026-09" className="bg-slate-900">
-                  2026-09 (Setembro)
+                  2026-09 (Setembro - Drive)
                 </option>
                 <option value="2026-08" className="bg-slate-900">
-                  2026-08 (Agosto)
+                  2026-08 (Agosto - Drive)
                 </option>
                 <option value="2026-07" className="bg-slate-900">
-                  2026-07 (Julho)
+                  2026-07 (Julho - Drive)
                 </option>
                 <option value="2026-06" className="bg-slate-900">
-                  2026-06 (Junho)
+                  2026-06 (Junho - Drive)
                 </option>
                 <option value="2026-05" className="bg-slate-900">
-                  2026-05 (Maio)
+                  2026-05 (Maio - Drive)
                 </option>
               </select>
             </div>
@@ -256,32 +285,43 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'overview' && (
-          <MonthlyOverview
-            referenceMonth={referenceMonth}
-            providers={providers}
-            cycles={cycles}
-            onTriggerProvider={(p) => handleTriggerProvider(p)}
-            triggeringId={triggeringId}
-          />
-        )}
+        {isLoading ? (
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-12 text-center space-y-3">
+            <div className="w-8 h-8 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin mx-auto" />
+            <p className="text-sm font-medium text-slate-300">
+              Sincronizando dados em tempo real com o Supabase ({referenceMonth})...
+            </p>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'overview' && (
+              <MonthlyOverview
+                referenceMonth={referenceMonth}
+                providers={providers}
+                cycles={cycles}
+                onTriggerProvider={(p) => handleTriggerProvider(p)}
+                triggeringId={triggeringId}
+              />
+            )}
 
-        {activeTab === 'bi' && (
-          <BIAnalyticsView providers={providers} allCycles={allCycles} />
-        )}
+            {activeTab === 'bi' && (
+              <BIAnalyticsView providers={providers} allCycles={allCycles} />
+            )}
 
-        {activeTab === 'audit' && (
-          <AuditLogsView
-            logs={logs}
-            providers={providers}
-            onTriggerAll={() => handleTriggerProvider(undefined)}
-            onTriggerProvider={(p) => handleTriggerProvider(p)}
-            isTriggering={triggeringId !== null}
-          />
-        )}
+            {activeTab === 'audit' && (
+              <AuditLogsView
+                logs={logs}
+                providers={providers}
+                onTriggerAll={() => handleTriggerProvider(undefined)}
+                onTriggerProvider={(p) => handleTriggerProvider(p)}
+                isTriggering={triggeringId !== null}
+              />
+            )}
 
-        {activeTab === 'wizard' && (
-          <ProviderWizard onProviderCreated={handleProviderCreated} />
+            {activeTab === 'wizard' && (
+              <ProviderWizard onProviderCreated={handleProviderCreated} />
+            )}
+          </>
         )}
       </main>
     </div>
