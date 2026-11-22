@@ -76,8 +76,14 @@ export function sanitizeLogText(text: string, dynamicSecrets: string[] = []): st
 
 /**
  * Deeply clones and redacts an arbitrary object or error before logging or database storage.
+ * Uses a WeakSet and depth limit to safely handle circular references (e.g., Fastify Server / Req / Res objects).
  */
-export function redactObject<T>(input: T, dynamicSecrets: string[] = []): T {
+export function redactObject<T>(
+  input: T,
+  dynamicSecrets: string[] = [],
+  seen: WeakSet<object> = new WeakSet(),
+  depth = 0
+): T {
   if (input === null || input === undefined) {
     return input;
   }
@@ -99,8 +105,15 @@ export function redactObject<T>(input: T, dynamicSecrets: string[] = []): T {
     return redactedError as unknown as T;
   }
 
+  if (seen.has(input as object) || depth > 6) {
+    return '[Circular]' as unknown as T;
+  }
+  seen.add(input as object);
+
   if (Array.isArray(input)) {
-    return input.map((item) => redactObject(item, dynamicSecrets)) as unknown as T;
+    return input.map((item) =>
+      redactObject(item, dynamicSecrets, seen, depth + 1)
+    ) as unknown as T;
   }
 
   const output: Record<string, unknown> = {};
@@ -112,7 +125,7 @@ export function redactObject<T>(input: T, dynamicSecrets: string[] = []): T {
     ) {
       output[key] = '[REDACTED]';
     } else {
-      output[key] = redactObject(value, dynamicSecrets);
+      output[key] = redactObject(value, dynamicSecrets, seen, depth + 1);
     }
   }
 
