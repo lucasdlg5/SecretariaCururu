@@ -213,4 +213,10 @@ describe('Fastify Webhook Security (X-Telegram-Bot-Api-Secret-Token)', () => {
       checkAndRecordBotInteraction(t0 + 30 * 60 * 1000 + INACTIVITY_THRESHOLD_MS)
     ).toBe(true);
   });
+
+  it('normalizes sendable Telegram chat IDs prioritizing numeric IDs and preserving @ prefix for usernames', async () => {
+    const { getSendableTelegramChatIds } = await import('./bot/telegram.js');
+    expect(getSendableTelegramChatIds('123456789, @lucasdlg5')).toEqual(['123456789']);
+    expect(getSendableTelegramChatIds('lucasdlg5')).toEqual(['@lucasdlg5']);
+  });
 });

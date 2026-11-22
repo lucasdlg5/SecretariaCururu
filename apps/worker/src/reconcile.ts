@@ -12,7 +12,7 @@ import {
 } from '@secretaria/shared';
 import {
   GoogleDriveService,
-  parseAllowedChatIds,
+  getSendableTelegramChatIds,
   sendCapturedInvoiceNotification,
 } from '@secretaria/backend';
 import {
@@ -98,9 +98,16 @@ export async function runWithExponentialBackoff<T>(
 
 async function notifyTelegramChats(bot: Bot | null, markdownText: string): Promise<void> {
   if (!bot) return;
-  const chats = parseAllowedChatIds();
+  const chats = getSendableTelegramChatIds();
   for (const chatId of chats) {
-    await bot.api.sendMessage(chatId, markdownText, { parse_mode: 'Markdown' });
+    try {
+      await bot.api.sendMessage(chatId, markdownText, { parse_mode: 'Markdown' });
+    } catch (err) {
+      logger.warn(
+        { chatId, err: err instanceof Error ? err.message : String(err) },
+        'Falha não-fatal ao enviar mensagem no Telegram (configure o Chat ID numérico em TELEGRAM_ALLOWED_CHAT_IDS).'
+      );
+    }
   }
 }
 
@@ -230,16 +237,23 @@ export async function reconcileSingleProvider(
             supabase,
             onSendCaptchaImage: async ({ providerName, imageBuffer }) => {
               if (!bot) return;
-              const chats = parseAllowedChatIds();
+              const chats = getSendableTelegramChatIds();
               for (const chatId of chats) {
-                await bot.api.sendPhoto(
-                  chatId,
-                  new InputFile(imageBuffer, 'captcha.png'),
-                  {
-                    caption: `🧩 *Desafio CAPTCHA — ${providerName}*\nResponda esta mensagem com o texto da imagem em até 5 minutos.`,
-                    parse_mode: 'Markdown',
-                  }
-                );
+                try {
+                  await bot.api.sendPhoto(
+                    chatId,
+                    new InputFile(imageBuffer, 'captcha.png'),
+                    {
+                      caption: `🧩 *Desafio CAPTCHA — ${providerName}*\nResponda esta mensagem com o texto da imagem em até 5 minutos.`,
+                      parse_mode: 'Markdown',
+                    }
+                  );
+                } catch (err) {
+                  logger.warn(
+                    { chatId, err: err instanceof Error ? err.message : String(err) },
+                    'Falha não-fatal ao enviar foto de CAPTCHA no Telegram.'
+                  );
+                }
               }
             },
             onSendManualLinkRequired: async ({ providerName, portalUrl, reason }) => {

@@ -26,7 +26,6 @@ export async function buildFastifyServer(
 ): Promise<FastifyInstance> {
   const app = Fastify({
     loggerInstance: logger as unknown as FastifyBaseLogger,
-    disableRequestLogging: false,
   });
 
   await app.register(cors, {
@@ -38,9 +37,15 @@ export async function buildFastifyServer(
   // 1. Healthcheck Endpoint (Render Free Tier keep-alive / readiness check)
   // --------------------------------------------------------------------------
   app.get('/health', async () => {
+    const mem = process.memoryUsage();
     return {
       status: 'ok',
       service: 'secretaria-cururu-backend',
+      uptimeSeconds: Math.round(process.uptime()),
+      memoryMb: {
+        rss: Math.round((mem.rss / 1024 / 1024) * 10) / 10,
+        heapUsed: Math.round((mem.heapUsed / 1024 / 1024) * 10) / 10,
+      },
       timestamp: new Date().toISOString(),
     };
   });

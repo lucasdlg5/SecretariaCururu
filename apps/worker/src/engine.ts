@@ -60,6 +60,8 @@ export interface WorkflowExecutionResult {
 
 /**
  * Resolves the first visible locator among `primarySelector` and optional `fallbackSelectors`.
+ * Races all candidate selectors concurrently so fallback selectors are detected immediately
+ * without dividing the total timeout across sequential failures.
  */
 async function resolveResilientLocator(
   page: Page,
@@ -71,20 +73,23 @@ async function resolveResilientLocator(
   const candidates = [primarySelector, ...fallbackSelectors].map((sel) =>
     interpolateSecrets(sel, decryptedSecrets)
   );
-  const perCandidateTimeout = Math.max(2000, Math.floor(timeoutMs / candidates.length));
 
-  for (const candidate of candidates) {
-    const locator = page.locator(candidate).first();
-    const visible = await locator
-      .waitFor({ state: 'visible', timeout: perCandidateTimeout })
-      .then(() => true)
-      .catch(() => false);
-    if (visible) {
-      return locator;
-    }
+  if (candidates.length === 1) {
+    return page.locator(candidates[0]).first();
   }
 
-  return page.locator(candidates[0]).first();
+  try {
+    const winner = await Promise.any(
+      candidates.map(async (candidate) => {
+        const locator = page.locator(candidate).first();
+        await locator.waitFor({ state: 'visible', timeout: timeoutMs });
+        return locator;
+      })
+    );
+    return winner;
+  } catch {
+    return page.locator(candidates[0]).first();
+  }
 }
 
 /**
@@ -368,7 +373,10 @@ export async function executeDeclarativeWorkflow(
             }
           };
 
-          const browserContext = ctx.page.context();
+          const browserContext =
+            typeof ctx.page.context === 'function'
+              ? ctx.page.context()
+              : (ctx.page as unknown as ReturnType<Page['context']>);
           browserContext.on('response', responseHandler);
 
           try {

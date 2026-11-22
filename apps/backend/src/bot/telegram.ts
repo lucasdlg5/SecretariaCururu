@@ -82,6 +82,34 @@ export function parseAllowedChatIds(raw?: string): Set<string> {
 }
 
 /**
+ * Returns only valid Telegram Bot API target chat identifiers:
+ * - Numeric chat IDs (positive user IDs or negative group/channel IDs, e.g., `123456789` or `-100123456`)
+ * - Or `@username` formatted with the required leading `@` if no numeric IDs exist,
+ *   while prioritizing numeric IDs and catching per-chat errors so a non-resolvable username never crashes the Worker.
+ */
+export function getSendableTelegramChatIds(raw?: string): string[] {
+  const source = raw ?? process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? '';
+  const entries = source
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const numericIds: string[] = [];
+  const usernameTargets: string[] = [];
+
+  for (const entry of entries) {
+    const cleaned = entry.replace(/^@/, '');
+    if (/^-?\d+$/.test(cleaned)) {
+      numericIds.push(cleaned);
+    } else if (/^[a-zA-Z0-9_]{4,}$/.test(cleaned)) {
+      usernameTargets.push(`@${cleaned}`);
+    }
+  }
+
+  return numericIds.length > 0 ? numericIds : usernameTargets;
+}
+
+/**
  * Checks if a chat ID or username matches the configured `TELEGRAM_ALLOWED_CHAT_IDS` whitelist.
  */
 export function isTelegramUserAllowed(
@@ -554,7 +582,7 @@ export async function sendCapturedInvoiceNotification(params: {
   pdfBuffer: Buffer;
   fileName: string;
 }): Promise<void> {
-  const allowedChats = parseAllowedChatIds();
+  const targetChats = getSendableTelegramChatIds();
   const caption = [
     `📄 *Nova Fatura Capturada!*`,
     `• *Conta:* ${params.providerName} (${params.referenceMonth})`,
@@ -565,14 +593,21 @@ export async function sendCapturedInvoiceNotification(params: {
     `_Envie a foto ou PDF do comprovante aqui no chat após pagar para conciliar automaticamente._`,
   ].join('\n');
 
-  for (const chatId of allowedChats) {
-    await params.bot.api.sendDocument(
-      chatId,
-      new InputFile(params.pdfBuffer, params.fileName),
-      {
-        caption,
-        parse_mode: 'Markdown',
-      }
-    );
+  for (const chatId of targetChats) {
+    try {
+      await params.bot.api.sendDocument(
+        chatId,
+        new InputFile(params.pdfBuffer, params.fileName),
+        {
+          caption,
+          parse_mode: 'Markdown',
+        }
+      );
+    } catch (err) {
+      logger.warn(
+        { chatId, err: err instanceof Error ? err.message : String(err) },
+        'Não foi possível entregar notificação de fatura para este destinatário do Telegram (verifique se é um Chat ID numérico válido).'
+      );
+    }
   }
 }
