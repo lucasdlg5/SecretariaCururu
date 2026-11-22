@@ -219,4 +219,45 @@ describe('Fastify Webhook Security (X-Telegram-Bot-Api-Secret-Token)', () => {
     expect(getSendableTelegramChatIds('123456789, @lucasdlg5')).toEqual(['123456789']);
     expect(getSendableTelegramChatIds('lucasdlg5')).toEqual(['@lucasdlg5']);
   });
+
+  it('builds the two inactivity messages: (1) bot capabilities and (2) due dates of analyzed unpaid bills', async () => {
+    const {
+      buildBotCapabilitiesWelcomeMessage,
+      buildUnpaidAnalyzedBillsMessage,
+    } = await import('./bot/telegram.js');
+
+    const msg1 = buildBotCapabilitiesWelcomeMessage('https://painel.exemplo.com');
+    expect(msg1).toContain('Aqui está o que eu posso fazer por você');
+    expect(msg1).toContain('/status');
+    expect(msg1).toContain('/pendentes');
+    expect(msg1).toContain('/rodar <conta>');
+    expect(msg1).toContain('https://painel.exemplo.com');
+
+    const msg2 = buildUnpaidAnalyzedBillsMessage([
+      {
+        providerName: 'Gás - Comgás',
+        referenceMonth: '2026-11',
+        status: 'PDF_CAPTURED',
+        amountCents: 8740,
+        dueDate: '2026-11-22',
+        invoiceDriveUrl: 'https://drive.google.com/file/d/comgas/view',
+      },
+      {
+        providerName: 'Luz - EDP',
+        referenceMonth: '2026-11',
+        status: 'PDF_CAPTURED',
+        amountCents: 24890,
+        dueDate: '2026-11-15',
+        invoiceDriveUrl: 'https://drive.google.com/file/d/edp/view',
+      },
+    ]);
+
+    expect(msg2).toContain('Datas de Vencimento — Contas Analisadas e Não Pagas');
+    // Ordered chronologically by due date (15/11/2026 before 22/11/2026)
+    expect(msg2.indexOf('15/11/2026')).toBeLessThan(msg2.indexOf('22/11/2026'));
+    expect(msg2).toContain('Luz - EDP');
+    expect(msg2).toContain('248,90');
+    expect(msg2).toContain('Gás - Comgás');
+    expect(msg2).toContain('87,40');
+  });
 });

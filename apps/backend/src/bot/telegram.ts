@@ -128,6 +128,84 @@ export function isTelegramUserAllowed(
   return false;
 }
 
+export interface UnpaidAnalyzedCycleItem {
+  providerName: string;
+  referenceMonth: string;
+  status: string;
+  amountCents: number | null;
+  dueDate: string | null;
+  invoiceDriveUrl?: string | null;
+}
+
+/**
+ * Message 1 sent when resuming chat after >= 1 hour of inactivity:
+ * Explains everything the bot can do + link to the online Dashboard.
+ */
+export function buildBotCapabilitiesWelcomeMessage(
+  dashboardUrl: string = process.env.DASHBOARD_URL ?? DEFAULT_DASHBOARD_URL
+): string {
+  return [
+    `🤖 *Olá! Estou de volta — SecretariaCururu Online*`,
+    '',
+    `Aqui está o que eu posso fazer por você:`,
+    `• 🧾 *Conciliar Comprovantes:* Envie uma *foto ou PDF* de qualquer comprovante (PIX/boleto) que eu extraio o valor via OCR e concilio automaticamente.`,
+    `• 📄 *Arquivar Faturas Manuais:* Envie boletos de Condomínio, Aluguel ou contas pendentes para salvar no Google Drive.`,
+    `• 📊 \`/status\` — Ver o resumo de todas as contas do mês atual.`,
+    `• ⏳ \`/pendentes\` — Listar contas abertas e não pagas.`,
+    `• 🚀 \`/rodar <conta>\` — Disparar a captura automática no portal agora mesmo (ex: \`/rodar EDP\`).`,
+    `• 🧩 *Resolver CAPTCHA:* Se algum portal pedir confirmação visual, basta responder o código aqui no chat.`,
+    '',
+    `🌐 *Painel Web:* ${dashboardUrl}`,
+  ].join('\n');
+}
+
+/**
+ * Message 2 sent when resuming chat after >= 1 hour of inactivity:
+ * Lists the due dates (datas de vencimento) and amounts of already analyzed and unpaid bills.
+ */
+export function buildUnpaidAnalyzedBillsMessage(
+  items: UnpaidAnalyzedCycleItem[]
+): string {
+  if (items.length === 0) {
+    return [
+      `📅 *Vencimentos de Contas Analisadas e Não Pagas:*`,
+      '',
+      `🎉 Nenhuma conta analisada pendente de pagamento no momento!`,
+    ].join('\n');
+  }
+
+  const sorted = [...items].sort((a, b) => {
+    const dateA = a.dueDate ?? '9999-12-31';
+    const dateB = b.dueDate ?? '9999-12-31';
+    return dateA.localeCompare(dateB);
+  });
+
+  const lines: string[] = [
+    `📅 *Datas de Vencimento — Contas Analisadas e Não Pagas:*`,
+    '',
+  ];
+
+  for (const item of sorted) {
+    const formattedDue = item.dueDate
+      ? item.dueDate.split('-').reverse().join('/')
+      : 'Data a definir';
+    const formattedAmount = formatCentsToBrl(item.amountCents);
+    const driveLink = item.invoiceDriveUrl
+      ? ` • [Ver Fatura](${item.invoiceDriveUrl})`
+      : '';
+    lines.push(
+      `• *${item.providerName}* (${item.referenceMonth}) — Vencimento: *${formattedDue}* — Valor: *${formattedAmount}*${driveLink}`
+    );
+  }
+
+  lines.push(
+    '',
+    `_Envie o comprovante (foto ou PDF) aqui no chat assim que realizar o pagamento._`
+  );
+
+  return lines.join('\n');
+}
+
 export interface TelegramBotDependencies {
   botToken?: string;
   supabase: TypedSupabaseClient;
@@ -144,28 +222,77 @@ export function createTelegramBot(deps: TelegramBotDependencies): Bot {
   const bot = new Bot(token);
 
   // --------------------------------------------------------------------------
-  // 1. Whitelist & 1-Hour Inactivity Dashboard Link Middleware
+  // 1. Whitelist & 1-Hour Inactivity Welcome + Unpaid Due Dates Middleware
   // --------------------------------------------------------------------------
   bot.use(async (ctx, next) => {
     const chatId = ctx.chat?.id ? String(ctx.chat.id) : null;
-    const username = ctx.from?.username ?? (ctx.chat as { username?: string } | undefined)?.username ?? null;
+    const username =
+      ctx.from?.username ??
+      (ctx.chat as { username?: string } | undefined)?.username ??
+      null;
 
     if (!isTelegramUserAllowed(chatId, username)) {
-      logger.warn({ chatId, username }, 'Acesso bloqueado: Chat ID / Username fora da whitelist do Telegram');
+      logger.warn(
+        { chatId, username },
+        'Acesso bloqueado: Chat ID / Username fora da whitelist do Telegram'
+      );
       return;
     }
 
-    const shouldSendDashboardLink = checkAndRecordBotInteraction();
-    if (shouldSendDashboardLink && ctx.chat?.id) {
+    const shouldSendInactivityGreeting = checkAndRecordBotInteraction();
+    if (shouldSendInactivityGreeting && ctx.chat?.id) {
       const dashboardUrl = process.env.DASHBOARD_URL ?? DEFAULT_DASHBOARD_URL;
+
+      // 1st Message: What the bot can do + Dashboard link
       await ctx
-        .reply(
-          `🌐 *Painel SecretariaCururu Online:*\nAcesse o dashboard: ${dashboardUrl}`,
-          { parse_mode: 'Markdown' }
-        )
+        .reply(buildBotCapabilitiesWelcomeMessage(dashboardUrl), {
+          parse_mode: 'Markdown',
+        })
         .catch((err) => {
-          logger.warn({ err }, 'Falha ao enviar mensagem automática com link do dashboard');
+          logger.warn({ err }, 'Falha ao enviar mensagem de boas-vindas e capacidades');
         });
+
+      // 2nd Message: Due dates of already analyzed and unpaid bills
+      try {
+        const [currentMonth, prevMonth] = getCurrentAndPreviousReferenceMonths();
+        const { data: unpaidCycles } = await deps.supabase
+          .from('bill_cycles')
+          .select('*, bill_providers(name, due_day_default)')
+          .in('reference_month', [currentMonth, prevMonth])
+          .in('status', ['PDF_CAPTURED', 'MANUAL_REQUIRED', 'WAITING_CAPTCHA'])
+          .order('due_date', { ascending: true });
+
+        const unpaidItems: UnpaidAnalyzedCycleItem[] = (unpaidCycles ?? []).map(
+          (c) => {
+            const prov = (
+              c as unknown as {
+                bill_providers?: { name: string; due_day_default?: number };
+              }
+            ).bill_providers;
+            const fallbackDueDate = prov?.due_day_default
+              ? `${c.reference_month}-${String(prov.due_day_default).padStart(2, '0')}`
+              : null;
+
+            return {
+              providerName: prov?.name ?? 'Conta',
+              referenceMonth: c.reference_month,
+              status: c.status,
+              amountCents: c.amount_cents,
+              dueDate: c.due_date ?? fallbackDueDate,
+              invoiceDriveUrl: c.invoice_drive_url,
+            };
+          }
+        );
+
+        await ctx.reply(buildUnpaidAnalyzedBillsMessage(unpaidItems), {
+          parse_mode: 'Markdown',
+        });
+      } catch (err) {
+        logger.warn(
+          { err },
+          'Falha ao consultar ou enviar resumo de vencimentos de contas não pagas'
+        );
+      }
     }
 
     await next();
