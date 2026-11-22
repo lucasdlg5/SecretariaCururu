@@ -226,6 +226,163 @@ describe('Google Drive Folder Layout & Standard File Naming', () => {
     expect(uploaded.folderPath).toEqual(['#8-Novembro/2026', 'Contas']);
     expect(supabaseUploadMock).toHaveBeenCalledOnce();
   });
+
+  it('reconciles Supabase Bucket files to Google Drive every 6h, removes migrated files from the bucket, and logs all attempts in execution_logs', async () => {
+    const auditLogsInserted: Array<Record<string, unknown>> = [];
+    const cycleUpdates: Array<Record<string, unknown>> = [];
+    const bucketRemovedPaths: string[][] = [];
+
+    const listMock = vi
+      .fn()
+      // 1st file (EDP): succeeds on Google Drive
+      .mockResolvedValueOnce({
+        data: { files: [{ id: 'folder-nov-2026', name: '#8-Novembro/2026' }] },
+      })
+      .mockResolvedValueOnce({
+        data: { files: [{ id: 'folder-nov-contas', name: 'Contas' }] },
+      })
+      // 2nd file (Comgás): fails on Google Drive
+      .mockRejectedValueOnce(new Error('Google Drive temporary 503 error'))
+      .mockRejectedValueOnce(new Error('Google Drive temporary 503 error'));
+
+    const createMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          id: 'drive-migrated-edp-123',
+          webViewLink: 'https://drive.google.com/file/d/drive-migrated-edp-123/view',
+        },
+      })
+      .mockRejectedValueOnce(new Error('Google Drive temporary 503 error'));
+
+    const downloadMock = vi.fn().mockResolvedValue({
+      data: new Blob([Buffer.from('%PDF-1.4 stored-in-bucket')]),
+      error: null,
+    });
+
+    const removeMock = vi.fn().mockImplementation(async (paths: string[]) => {
+      bucketRemovedPaths.push(paths);
+      return { data: paths, error: null };
+    });
+
+    const fakeCyclesInBucket = [
+      {
+        id: 'cycle-edp-nov',
+        provider_id: 'prov-edp',
+        reference_month: '2026-11',
+        status: 'PDF_CAPTURED',
+        invoice_drive_file_id:
+          '#8-Novembro/2026/Contas/2026-11_LUZ_LUZ_EDP_FATURA.pdf',
+        invoice_drive_url:
+          'https://supabase.co/storage/v1/object/public/CururuBucket/%238-Novembro/2026/Contas/2026-11_LUZ_LUZ_EDP_FATURA.pdf',
+        receipt_drive_file_id: null,
+        receipt_drive_url: null,
+        bill_providers: {
+          id: 'prov-edp',
+          name: 'Luz - EDP',
+          category: 'LUZ',
+        },
+      },
+      {
+        id: 'cycle-comgas-nov',
+        provider_id: 'prov-comgas',
+        reference_month: '2026-11',
+        status: 'PDF_CAPTURED',
+        invoice_drive_file_id:
+          '#8-Novembro/2026/Contas/2026-11_GAS_GAS_COMGAS_FATURA.pdf',
+        invoice_drive_url:
+          'https://supabase.co/storage/v1/object/public/CururuBucket/%238-Novembro/2026/Contas/2026-11_GAS_GAS_COMGAS_FATURA.pdf',
+        receipt_drive_file_id: null,
+        receipt_drive_url: null,
+        bill_providers: {
+          id: 'prov-comgas',
+          name: 'Gás - Comgás',
+          category: 'GAS',
+        },
+      },
+    ];
+
+    const supabaseMock = {
+      storage: {
+        from: () => ({
+          download: downloadMock,
+          remove: removeMock,
+        }),
+      },
+      from: (table: string) => {
+        if (table === 'bill_cycles') {
+          return {
+            select: () => ({
+              order: () => Promise.resolve({ data: fakeCyclesInBucket, error: null }),
+            }),
+            update: (payload: Record<string, unknown>) => ({
+              eq: (col: string, val: string) => {
+                cycleUpdates.push({ col, val, payload });
+                return Promise.resolve({ error: null });
+              },
+            }),
+          };
+        }
+        if (table === 'execution_logs') {
+          return {
+            insert: (row: Record<string, unknown>) => {
+              auditLogsInserted.push(row);
+              return Promise.resolve({ error: null });
+            },
+          };
+        }
+        return {};
+      },
+    } as unknown as TypedSupabaseClient;
+
+    const driveService = new GoogleDriveService({
+      rootFolderId: '1Xe9NditnlI8eLQl-kMZgPVoCUlvgVZ73',
+      driveClient: {
+        files: {
+          list: listMock,
+          create: createMock,
+        },
+      } as unknown as NonNullable<
+        ConstructorParameters<typeof GoogleDriveService>[0]
+      >['driveClient'],
+      supabaseClient: supabaseMock,
+    });
+
+    const summary = await driveService.reconcileBucketToGoogleDrive();
+
+    expect(summary.checkedItems).toBe(2);
+    expect(summary.migratedCount).toBe(1);
+    expect(summary.removedFromBucketCount).toBe(1);
+    expect(summary.failedCount).toBe(1);
+
+    // 1. EDP migrated to Google Drive and was removed from Supabase Bucket
+    expect(cycleUpdates).toHaveLength(1);
+    expect(cycleUpdates[0]).toEqual({
+      col: 'id',
+      val: 'cycle-edp-nov',
+      payload: {
+        invoice_drive_file_id: 'drive-migrated-edp-123',
+        invoice_drive_url: 'https://drive.google.com/file/d/drive-migrated-edp-123/view',
+      },
+    });
+    expect(bucketRemovedPaths).toEqual([
+      ['#8-Novembro/2026/Contas/2026-11_LUZ_LUZ_EDP_FATURA.pdf'],
+    ]);
+
+    // 2. Both attempts (1 success + 1 failure) were recorded in execution_logs for audit
+    expect(auditLogsInserted).toHaveLength(2);
+    expect(auditLogsInserted[0].status).toBe('DRIVE_SYNC_SUCCESS');
+    expect(auditLogsInserted[0].step_reached).toBe('BUCKET_TO_DRIVE_RECONCILE');
+    expect(String(auditLogsInserted[0].sanitized_message)).toContain(
+      'removido do Supabase Bucket'
+    );
+
+    expect(auditLogsInserted[1].status).toBe('DRIVE_SYNC_RETRY_FAILED');
+    expect(auditLogsInserted[1].step_reached).toBe('BUCKET_TO_DRIVE_RECONCILE');
+    expect(String(auditLogsInserted[1].sanitized_message)).toContain(
+      'Arquivo mantido no Supabase Bucket'
+    );
+  });
 });
 
 describe('Receipt Text Extraction & Reconciliation Tolerance (±R$ 0,05)', () => {

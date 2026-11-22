@@ -330,6 +330,8 @@ export async function reconcileSingleProvider(
       extension: 'pdf',
       mimeType: 'application/pdf',
       buffer: result.pdfBuffer,
+      cycleId: cycle.id,
+      providerId: provider.id,
     });
 
     await supabase
@@ -344,6 +346,11 @@ export async function reconcileSingleProvider(
       })
       .eq('id', cycle.id);
 
+    const storageNote =
+      uploaded.storageProvider === 'SUPABASE_STORAGE'
+        ? `no Supabase Bucket (${uploaded.fileId}) com conciliação 6h agendada para o Google Drive`
+        : `no Google Drive (${uploaded.fileName})`;
+
     await supabase.from('execution_logs').insert({
       cycle_id: cycle.id,
       provider_id: provider.id,
@@ -351,7 +358,7 @@ export async function reconcileSingleProvider(
       finished_at: new Date().toISOString(),
       status: 'SUCCESS',
       step_reached: result.lastStepReached,
-      sanitized_message: `Fatura capturada e salva no Drive (${uploaded.fileName}).`,
+      sanitized_message: `Fatura capturada e salva ${storageNote}.`,
     });
 
     if (bot) {
@@ -463,7 +470,9 @@ export async function reconcileSingleProvider(
 }
 
 /**
- * Main entrypoint for GitHub Actions daily cron & workflow_dispatch.
+ * Main entrypoint for GitHub Actions 6-hour cron & workflow_dispatch.
+ * Always runs the 6-hour Supabase Storage Bucket -> Google Drive reconciliation first,
+ * and then reconciles any active bill providers due for capture.
  */
 export async function runDailyReconciliation(): Promise<void> {
   const supabase = createServiceSupabaseClient();
@@ -471,6 +480,26 @@ export async function runDailyReconciliation(): Promise<void> {
   const bot = process.env.TELEGRAM_BOT_TOKEN
     ? new Bot(process.env.TELEGRAM_BOT_TOKEN)
     : null;
+
+  // 1. Run 6-Hour Storage Reconciliation (Supabase Bucket -> Google Drive + Bucket Cleanup + Audit Log)
+  logger.info(
+    'Iniciando conciliação de storage (6 em 6 horas): verificando arquivos no Supabase Bucket pendentes de migração para o Google Drive...'
+  );
+  const storageSyncSummary = await driveService.reconcileBucketToGoogleDrive();
+  logger.info(
+    {
+      checkedItems: storageSyncSummary.checkedItems,
+      migratedCount: storageSyncSummary.migratedCount,
+      removedFromBucketCount: storageSyncSummary.removedFromBucketCount,
+      failedCount: storageSyncSummary.failedCount,
+    },
+    'Conciliação de storage (Supabase Bucket -> Google Drive) concluída.'
+  );
+
+  if (process.env.INPUT_ONLY_STORAGE_SYNC === 'true') {
+    logger.info('Execução exclusiva de conciliação de storage concluída.');
+    return;
+  }
 
   const targetProviderId = process.env.INPUT_PROVIDER_ID?.trim();
   const targetProviderName = process.env.INPUT_PROVIDER_NAME?.trim();

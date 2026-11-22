@@ -503,6 +503,29 @@ export function createTelegramBot(deps: TelegramBotDependencies): Bot {
     }
   });
 
+  bot.command('sincronizar', async (ctx) => {
+    await ctx.reply(
+      '🔄 *Iniciando conciliação de Storage (Supabase Bucket -> Google Drive)...*',
+      { parse_mode: 'Markdown' }
+    );
+    try {
+      const summary = await deps.driveService.reconcileBucketToGoogleDrive();
+      await ctx.reply(
+        [
+          `☁️ *Conciliação Supabase Bucket -> Google Drive Concluída*`,
+          `• *Arquivos no Bucket Verificados:* ${summary.checkedItems}`,
+          `• *Migrados para o Google Drive:* ${summary.migratedCount}`,
+          `• *Removidos do Bucket (Espaço Liberado):* ${summary.removedFromBucketCount}`,
+          `• *Mantidos no Bucket para Próxima Tentativa (6h):* ${summary.failedCount}`,
+        ].join('\n'),
+        { parse_mode: 'Markdown' }
+      );
+    } catch (err) {
+      logger.error({ err }, 'Falha ao executar /sincronizar no Telegram');
+      await ctx.reply('⚠️ Falha ao executar a conciliação de storage.');
+    }
+  });
+
   // --------------------------------------------------------------------------
   // 3. Text Messages -> HITL CAPTCHA Challenge Response
   // --------------------------------------------------------------------------
@@ -522,7 +545,7 @@ export function createTelegramBot(deps: TelegramBotDependencies): Bot {
 
     if (!challenge) {
       await ctx.reply(
-        '🤖 Envie uma *foto ou PDF de comprovante* para conciliar automaticamente, ou use `/status`, `/pendentes` e `/rodar <conta>`.',
+        '🤖 Envie uma *foto ou PDF de comprovante* para conciliar automaticamente, ou use `/status`, `/pendentes`, `/rodar <conta>` e `/sincronizar`.',
         { parse_mode: 'Markdown' }
       );
       return;
@@ -624,6 +647,8 @@ export function createTelegramBot(deps: TelegramBotDependencies): Bot {
           extension,
           mimeType,
           buffer,
+          cycleId: matched.id,
+          providerId: matched.provider_id,
         });
 
         await deps.supabase
@@ -754,6 +779,8 @@ export function createTelegramBot(deps: TelegramBotDependencies): Bot {
       extension: attachment.extension,
       mimeType: attachment.mimeType,
       buffer: attachment.buffer,
+      cycleId: cycleRow.id,
+      providerId: cycleRow.provider_id,
     });
 
     if (docKind === 'FATURA') {

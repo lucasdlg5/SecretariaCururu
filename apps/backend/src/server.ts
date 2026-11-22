@@ -11,12 +11,14 @@ import {
   redactObject,
 } from '@secretaria/shared';
 import type { GitHubActionsTriggerService } from './services/github-trigger.js';
+import type { GoogleDriveService } from './services/drive.js';
 
 const logger = createSanitizedLogger('fastify-server');
 
 export interface ServerDependencies {
   supabase: TypedSupabaseClient;
   githubTrigger: GitHubActionsTriggerService;
+  driveService?: GoogleDriveService;
   telegramBot?: Bot;
   webhookSecret?: string;
 }
@@ -191,6 +193,39 @@ export async function buildFastifyServer(
       logger.error({ err: redactObject(err) }, 'Erro ao acionar GitHub Actions');
       return reply.status(500).send({
         error: 'Não foi possível acionar o workflow no GitHub Actions.',
+      });
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // 5. Storage Reconciliation Endpoint: Supabase Bucket -> Google Drive (6h Sync)
+  // --------------------------------------------------------------------------
+  app.post<{
+    Body?: { reference_month?: string };
+  }>('/api/storage/reconcile', async (request, reply) => {
+    if (!deps.driveService) {
+      return reply.status(503).send({
+        error: 'Serviço GoogleDriveService não disponível.',
+      });
+    }
+
+    const referenceMonth = request.body?.reference_month;
+    try {
+      const summary = await deps.driveService.reconcileBucketToGoogleDrive({
+        referenceMonth,
+      });
+      return reply.status(200).send({
+        message:
+          'Conciliação de Storage (Supabase Bucket -> Google Drive) executada com sucesso.',
+        summary,
+      });
+    } catch (err) {
+      logger.error(
+        { err: redactObject(err) },
+        'Erro ao executar conciliação de storage Supabase Bucket -> Google Drive'
+      );
+      return reply.status(500).send({
+        error: 'Falha ao executar conciliação do Supabase Bucket para o Google Drive.',
       });
     }
   });

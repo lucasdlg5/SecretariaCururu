@@ -1,9 +1,9 @@
-name: Daily Bill Capture & Reconciliation (Playwright Worker)
+name: Bill Capture & 6-Hour Storage Reconciliation (Playwright & Drive Sync)
 
 on:
   schedule:
-    # Executa diariamente às 11:00 UTC (08:00 BRT)
-    - cron: "0 11 * * *"
+    # Executa de 6 em 6 horas (00:00, 06:00, 12:00, 18:00 UTC) para conciliar arquivos do Supabase Bucket -> Google Drive e capturar faturas do dia
+    - cron: "0 */6 * * *"
   workflow_dispatch:
     inputs:
       provider_id:
@@ -23,13 +23,18 @@ on:
         required: false
         default: "true"
         type: string
+      only_storage_sync:
+        description: "Executar apenas a conciliação Supabase Bucket -> Google Drive (sem abrir navegador)"
+        required: false
+        default: "false"
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   reconcile-bills:
-    name: Run Declarative Playwright Worker
+    name: Run 6h Storage Sync & Declarative Playwright Worker
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -52,12 +57,13 @@ jobs:
         run: pnpm install --frozen-lockfile || pnpm install
 
       - name: Install Playwright Chromium browser
+        if: ${{ inputs.only_storage_sync != 'true' }}
         run: pnpm --filter @secretaria/worker exec playwright install --with-deps chromium
 
       - name: Build shared & backend packages
         run: pnpm --filter @secretaria/shared build && pnpm --filter @secretaria/backend build
 
-      - name: Execute Daily Reconciliation Worker
+      - name: Execute 6h Bucket-to-Drive Sync & Reconciliation Worker
         env:
           APP_MASTER_KEY: ${{ secrets.APP_MASTER_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -71,4 +77,5 @@ jobs:
           INPUT_PROVIDER_NAME: ${{ inputs.provider_name }}
           INPUT_REFERENCE_MONTH: ${{ inputs.reference_month }}
           INPUT_FORCE_RUN: ${{ inputs.force_run }}
+          INPUT_ONLY_STORAGE_SYNC: ${{ inputs.only_storage_sync }}
         run: pnpm --filter @secretaria/worker reconcile

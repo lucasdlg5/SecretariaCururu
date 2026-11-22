@@ -1,5 +1,13 @@
 import React from 'react';
-import { Play, ShieldAlert, Terminal, CheckCircle, Clock } from 'lucide-react';
+import {
+  Play,
+  ShieldAlert,
+  Terminal,
+  CheckCircle,
+  Clock,
+  RefreshCw,
+  HardDriveUpload,
+} from 'lucide-react';
 import type { BillProviderRow, ExecutionLogRow } from '@secretaria/shared';
 
 interface AuditLogsViewProps {
@@ -7,6 +15,7 @@ interface AuditLogsViewProps {
   providers: BillProviderRow[];
   onTriggerAll: () => void;
   onTriggerProvider: (provider: BillProviderRow) => void;
+  onReconcileStorage?: () => void;
   isTriggering: boolean;
 }
 
@@ -15,6 +24,7 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({
   providers,
   onTriggerAll,
   onTriggerProvider,
+  onReconcileStorage,
   isTriggering,
 }) => {
   const providerById = new Map(providers.map((p) => [p.id, p]));
@@ -33,27 +43,41 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({
             <div className="flex items-center gap-2">
               <Terminal className="w-4 h-4 text-emerald-400" />
               <h2 className="text-base font-semibold text-white">
-                Auditoria de Execuções & Logs Sanitizados
+                Auditoria de Execuções, Conciliação 6h (Bucket → Drive) & Logs Sanitizados
               </h2>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Todos os logs passam pelo middleware Pino Log Redactor antes de serem persistidos no
-              Supabase (CPFs, e-mails, senhas e códigos de barras são ofuscados).
+              Registra capturas Playwright, fallbacks no Supabase Bucket e tentativas de
+              conciliação de 6 em 6 horas para o Google Drive (com remoção automática do bucket após sucesso).
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onTriggerAll}
-          disabled={isTriggering}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 transition-colors cursor-pointer"
-        >
-          <Play className="w-4 h-4" />
-          {isTriggering
-            ? 'Acionando GitHub Actions...'
-            : 'Executar Todas as Contas Agora (GitHub Actions)'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {onReconcileStorage && (
+            <button
+              type="button"
+              onClick={onReconcileStorage}
+              disabled={isTriggering}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-lg text-xs font-semibold bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/40 disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Conciliar Bucket → Google Drive (6h)
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onTriggerAll}
+            disabled={isTriggering}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 transition-colors cursor-pointer"
+          >
+            <Play className="w-4 h-4" />
+            {isTriggering
+              ? 'Acionando GitHub Actions...'
+              : 'Executar Todas as Contas Agora (GitHub Actions)'}
+          </button>
+        </div>
       </div>
 
       {/* Logs List */}
@@ -61,8 +85,12 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({
         <div className="divide-y divide-slate-800">
           {logs.map((log) => {
             const provider = providerById.get(log.provider_id);
-            const isSuccess = log.status === 'SUCCESS';
+            const isSuccess =
+              log.status === 'SUCCESS' || log.status === 'DRIVE_SYNC_SUCCESS';
             const isNotFound = log.status === 'NOT_FOUND_YET';
+            const isStorageFallback =
+              log.status === 'DRIVE_FALLBACK_BUCKET' ||
+              log.status === 'DRIVE_SYNC_RETRY_FAILED';
 
             return (
               <div
@@ -74,12 +102,17 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({
                     {isSuccess ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                         <CheckCircle className="w-3.5 h-3.5" />
-                        SUCCESS
+                        {log.status}
                       </span>
                     ) : isNotFound ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700/50 text-slate-300 border border-slate-600">
                         <Clock className="w-3.5 h-3.5" />
                         NOT_FOUND_YET
+                      </span>
+                    ) : isStorageFallback ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                        <HardDriveUpload className="w-3.5 h-3.5" />
+                        {log.status}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-500/15 text-rose-300 border border-rose-500/30">

@@ -144,6 +144,44 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleReconcileStorage = async () => {
+    setTriggeringId('STORAGE_RECONCILE');
+    setBannerMessage(null);
+
+    try {
+      const res = await fetch(`${BACKEND_API_URL}/api/storage/reconcile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference_month: referenceMonth }),
+      }).catch(() => null);
+
+      const data = res && res.ok ? await res.json().catch(() => null) : null;
+      const summary = data?.summary;
+
+      const msg = summary
+        ? `Conciliação 6h (Supabase Bucket -> Google Drive): ${summary.checkedItems} verificado(s), ${summary.migratedCount} migrado(s) para o Drive e ${summary.removedFromBucketCount} removido(s) do Bucket (${summary.failedCount} mantido(s) para nova tentativa em 6h).`
+        : 'Conciliação 6h (Supabase Bucket -> Google Drive) acionada.';
+
+      const newLog: ExecutionLogRow = {
+        id: `log-storage-${Date.now()}`,
+        cycle_id: null,
+        provider_id: providers[0]?.id ?? 'storage-sync',
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        status: summary?.failedCount > 0 ? 'DRIVE_SYNC_RETRY_FAILED' : 'DRIVE_SYNC_SUCCESS',
+        step_reached: 'BUCKET_TO_DRIVE_RECONCILE',
+        sanitized_message: msg,
+        error_code: summary?.failedCount > 0 ? 'GOOGLE_DRIVE_SYNC_ERROR' : null,
+        created_at: new Date().toISOString(),
+      };
+
+      setLogs((prev) => [newLog, ...prev]);
+      setBannerMessage(`☁️ ${msg}`);
+    } finally {
+      setTriggeringId(null);
+    }
+  };
+
   const handleProviderCreated = (newProvider: BillProviderRow) => {
     setProviders((prev) => [newProvider, ...prev]);
     setBannerMessage(`✅ Novo processo "${newProvider.name}" adicionado ao painel!`);
@@ -319,6 +357,7 @@ export const App: React.FC = () => {
                 providers={providers}
                 onTriggerAll={() => handleTriggerProvider(undefined)}
                 onTriggerProvider={(p) => handleTriggerProvider(p)}
+                onReconcileStorage={handleReconcileStorage}
                 isTriggering={triggeringId !== null}
               />
             )}
