@@ -74,6 +74,43 @@ export async function buildFastifyServer(
   }
 
   // --------------------------------------------------------------------------
+  // 2.5. Dashboard API: Get Live State (Providers, Cycles, Execution Logs)
+  // --------------------------------------------------------------------------
+  app.get<{ Querystring: { reference_month?: string } }>(
+    '/api/dashboard/state',
+    async (request, reply) => {
+      const refMonth = request.query.reference_month ?? formatReferenceMonth();
+
+      const [providersRes, cyclesRes, logsRes] = await Promise.all([
+        deps.supabase
+          .from('bill_providers')
+          .select(
+            'id, name, category, mode, is_active, trigger_day, due_day_default, portal_url, max_retry_days, workflow_steps, fallback_workflow_steps, created_at, updated_at'
+          )
+          .order('name'),
+        deps.supabase
+          .from('bill_cycles')
+          .select('*')
+          .eq('reference_month', refMonth),
+        deps.supabase
+          .from('execution_logs')
+          .select('*')
+          .order('started_at', { ascending: false })
+          .limit(50),
+      ]);
+
+      return reply.status(200).send({
+        providers: (providersRes.data ?? []).map((p) => ({
+          ...p,
+          encrypted_secrets: {},
+        })),
+        cycles: cyclesRes.data ?? [],
+        logs: logsRes.data ?? [],
+      });
+    }
+  );
+
+  // --------------------------------------------------------------------------
   // 3. Dashboard API: Create / Update Bill Provider (Encrypts Secrets with AES-256-GCM)
   // --------------------------------------------------------------------------
   app.post('/api/providers', async (request, reply) => {

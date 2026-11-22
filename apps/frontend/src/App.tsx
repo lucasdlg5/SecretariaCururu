@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   ScrollText,
@@ -28,10 +28,34 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [referenceMonth, setReferenceMonth] = useState('2026-11');
   const [providers, setProviders] = useState<BillProviderRow[]>(DEMO_PROVIDERS);
-  const [cycles] = useState<BillCycleRow[]>(DEMO_CYCLES);
+  const [cycles, setCycles] = useState<BillCycleRow[]>(DEMO_CYCLES);
   const [logs, setLogs] = useState<ExecutionLogRow[]>(DEMO_EXECUTION_LOGS);
   const [triggeringId, setTriggeringId] = useState<string | null>(null);
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`${BACKEND_API_URL}/api/dashboard/state?reference_month=${encodeURIComponent(referenceMonth)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { providers?: BillProviderRow[]; cycles?: BillCycleRow[]; logs?: ExecutionLogRow[] } | null) => {
+        if (!active || !data) return;
+        if (Array.isArray(data.providers) && data.providers.length > 0) {
+          setProviders(data.providers);
+        }
+        if (Array.isArray(data.cycles)) {
+          setCycles(data.cycles);
+        }
+        if (Array.isArray(data.logs) && data.logs.length > 0) {
+          setLogs(data.logs);
+        }
+      })
+      .catch(() => {
+        // Fallback to DEMO state when backend is unreachable
+      });
+    return () => {
+      active = false;
+    };
+  }, [referenceMonth]);
 
   const handleTriggerProvider = async (provider?: BillProviderRow) => {
     const targetId = provider?.id ?? 'ALL';
