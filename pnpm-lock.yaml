@@ -24,8 +24,8 @@ importers:
         specifier: ^10.0.2
         version: 10.1.0
       '@google/genai':
-        specifier: ^1.0.0
-        version: 1.52.0
+        specifier: ^3.6.0
+        version: 3.6.0
       '@octokit/rest':
         specifier: ^21.1.1
         version: 21.1.1
@@ -606,9 +606,9 @@ packages:
   '@fastify/proxy-addr@5.1.3':
     resolution: {integrity: sha512-ptgIgB+abBNTs5lsKNvFaKMCauPaTOE6ZIjxJr3FxCLehmYQQKYGg4srwwNICR9QQlFrYw59jWAo+i9GalVCaw==}
 
-  '@google/genai@1.52.0':
-    resolution: {integrity: sha512-gwSvbpiN/17O9TbsqSsE/OzZcpv5Fo4RQjdngGgogtuB9RsyJ8ZHhX5KjHj1bp5N9snN2eK8LDGXSaWW2hof8Q==}
-    engines: {node: '>=20.0.0'}
+  '@google/genai@3.6.0':
+    resolution: {integrity: sha512-p78Rz0a0exP4XyCF2CcaaVHW8jDU3hDebQYMTG3wzT3BTzjkgr5z3ITCgGKenKtK7o6Rak7C0mmciqCXsinr7A==}
+    engines: {node: '>=22.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.25.2
     peerDependenciesMeta:
@@ -2381,7 +2381,7 @@ snapshots:
       '@fastify/forwarded': 3.1.2
       ipaddr.js: 2.5.0
 
-  '@google/genai@1.52.0':
+  '@google/genai@3.6.0':
     dependencies:
       google-auth-library: 10.9.1
       p-retry: 4.6.2
